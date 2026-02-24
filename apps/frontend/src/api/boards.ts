@@ -96,4 +96,7 @@ export const boardsApi = {
 
   archiveCard: (cardId: string) =>
     apiClient.post(`/cards/${cardId}/archive`).then((r) => r.data),
+
+  moveColumn: (columnId: string, data: { position: number }) =>
+    apiClient.patch(`/columns/${columnId}/move`, data).then((r) => r.data),
 };
