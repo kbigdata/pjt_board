@@ -7,13 +7,14 @@ import {
   ConnectedSocket,
   MessageBody,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, forwardRef, Inject } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ActivityAction, NotificationType } from '@prisma/client';
 import { ActivityService } from '../activity/activity.service';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AutomationService, CardLike, TriggerType } from '../automation/automation.service';
 
 interface AuthSocket extends Socket {
   userId?: string;
@@ -36,6 +37,8 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly activityService: ActivityService,
     private readonly notificationService: NotificationService,
     private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => AutomationService))
+    private readonly automationService: AutomationService,
   ) {}
 
   async handleConnection(client: AuthSocket) {
@@ -130,6 +133,22 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
+  // --- Automation trigger helper ---
+
+  async triggerAutomation(
+    boardId: string,
+    triggerType: TriggerType,
+    card: CardLike,
+  ): Promise<void> {
+    try {
+      await this.automationService.triggerRules(boardId, triggerType, card);
+    } catch (err) {
+      this.logger.error(
+        `Error triggering automation rules for board "${boardId}": ${(err as Error).message}`,
+      );
+    }
+  }
+
   // --- Broadcast helpers called from controllers/services ---
 
   async emitCardCreated(boardId: string, userId: string, card: Record<string, unknown>) {
@@ -141,6 +160,7 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
       cardId: card.id as string,
       details: { title: card.title },
     });
+    await this.triggerAutomation(boardId, 'cardCreated', card as unknown as CardLike);
   }
 
   async emitCardUpdated(boardId: string, userId: string, card: Record<string, unknown>) {
@@ -190,6 +210,8 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.server.to(`user:${assigneeId}`).emit('notificationUnread', { boardId });
       }
     }
+
+    await this.triggerAutomation(boardId, 'cardMoved', card as unknown as CardLike);
   }
 
   async emitCardArchived(boardId: string, userId: string, cardId: string) {

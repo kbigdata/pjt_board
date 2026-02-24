@@ -9,13 +9,17 @@ import {
   type DraggableProvidedDragHandleProps,
 } from '@hello-pangea/dnd';
 import { boardsApi, type Card, type Column } from '@/api/boards';
+import { templatesApi, type BoardTemplate } from '@/api/templates';
 import { useSwimlanes } from '@/hooks/useSwimlanes';
 import { type Swimlane } from '@/api/swimlanes';
 import CardDetailModal from '@/components/CardDetailModal';
 import ActivityFeed from '@/components/ActivityFeed';
 import ArchiveDrawer from '@/components/ArchiveDrawer';
+import ListView from '@/components/ListView';
+import KeyboardShortcutHelp from '@/components/KeyboardShortcutHelp';
 import { useBoardSocket } from '@/hooks/useSocket';
 import { useColumnCollapseStore } from '@/stores/columnCollapse';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 const PRIORITY_COLORS: Record<string, string> = {
   CRITICAL: 'bg-red-500',
@@ -65,6 +69,18 @@ function getDueDateStatus(
     label: due.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
     className: 'bg-gray-100 text-gray-500',
   };
+}
+
+// AG-001: Card aging helpers
+function getCardAgingDays(card: Card): number {
+  if (!card.updatedAt) return 0;
+  return Math.floor((Date.now() - new Date(card.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function getCardAgingClass(days: number): string {
+  if (days > 14) return 'opacity-50';
+  if (days > 7) return 'opacity-75';
+  return '';
 }
 
 // SF-002, SF-005~010: Advanced filter state shape
@@ -118,6 +134,9 @@ export default function BoardPage() {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filters, setFilters] = useState<FilterState>(getEmptyFilters());
 
+  // VW-002: View mode (board / list)
+  const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
+
   // Swimlane state
   const [swimlaneMode, setSwimlaneMode] = useState(false);
   const { swimlanes, createSwimlane } = useSwimlanes(boardId);
@@ -129,6 +148,29 @@ export default function BoardPage() {
     columnTitle: string;
     hasCards: boolean;
   } | null>(null);
+
+  // TM: Save as Template state
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [templateDesc, setTemplateDesc] = useState('');
+
+  // Search input ref for keyboard shortcut 'f'
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // First column ref for keyboard shortcut 'n'
+  const firstColumnAddCardRef = useRef<(() => void) | null>(null);
+
+  // Keyboard shortcuts
+  const { showHelp, setShowHelp } = useKeyboardShortcuts({
+    onNewCard: () => firstColumnAddCardRef.current?.(),
+    onFocusSearch: () => searchInputRef.current?.focus(),
+    onCloseModal: () => {
+      if (selectedCardId) setSelectedCardId(null);
+      else if (activityOpen) setActivityOpen(false);
+      else if (archiveOpen) setArchiveOpen(false);
+      else if (showFilterPanel) setShowFilterPanel(false);
+    },
+  });
 
   // DD-012: Auto-scroll refs
   const boardScrollRef = useRef<HTMLDivElement>(null);
@@ -298,6 +340,34 @@ export default function BoardPage() {
     },
   });
 
+  // TM: Save board as template
+  const saveTemplateMutation = useMutation({
+    mutationFn: (data: { name: string; description?: string }) =>
+      templatesApi.createFromBoard(boardId!, data),
+    onSuccess: () => {
+      setShowSaveTemplate(false);
+      setTemplateName('');
+      setTemplateDesc('');
+    },
+  });
+
+  // IO-001: Export board
+  const handleExportBoard = async () => {
+    if (!boardId || !board) return;
+    try {
+      const data = await boardsApi.exportBoard(boardId);
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${board.title.replace(/\s+/g, '-').toLowerCase()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Export failed silently — backend may not support this endpoint yet
+    }
+  };
+
   // DD-012: Auto-scroll handler
   const handleAutoScroll = useCallback((x: number) => {
     const container = boardScrollRef.current;
@@ -464,7 +534,7 @@ export default function BoardPage() {
   return (
     <div className="h-[calc(100vh-3.5rem)] flex flex-col">
       {/* Board header */}
-      <div className="px-4 py-3 border-b bg-white flex items-center justify-between">
+      <div className="px-4 py-3 border-b bg-white flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <Link
             to={`/workspaces/${board?.workspaceId}`}
@@ -474,7 +544,23 @@ export default function BoardPage() {
           </Link>
           <h2 className="text-lg font-semibold text-gray-900">{board?.title}</h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* VW-002: View toggle */}
+          <div className="flex items-center rounded border border-gray-300 overflow-hidden">
+            <button
+              onClick={() => setViewMode('board')}
+              className={`text-sm px-3 py-1 ${viewMode === 'board' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+              Board
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`text-sm px-3 py-1 border-l border-gray-300 ${viewMode === 'list' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+              List
+            </button>
+          </div>
+
           <button
             onClick={() => setSwimlaneMode((v) => !v)}
             className={`text-sm px-3 py-1 rounded ${swimlaneMode ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
@@ -493,12 +579,100 @@ export default function BoardPage() {
           >
             Activity
           </button>
+
+          {/* IO-001: Export */}
+          <button
+            onClick={handleExportBoard}
+            className="text-sm px-3 py-1 rounded text-gray-500 hover:bg-gray-100"
+            title="Export board as JSON"
+          >
+            Export
+          </button>
+
+          {/* TM: Save as template */}
+          <button
+            onClick={() => setShowSaveTemplate((v) => !v)}
+            className={`text-sm px-3 py-1 rounded ${showSaveTemplate ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
+          >
+            Save as Template
+          </button>
+
+          {/* Links to Automations and Reports */}
+          <Link
+            to={`/boards/${boardId}/automations`}
+            className="text-sm px-3 py-1 rounded text-gray-500 hover:bg-gray-100"
+          >
+            Automations
+          </Link>
+          <Link
+            to={`/boards/${boardId}/reports`}
+            className="text-sm px-3 py-1 rounded text-gray-500 hover:bg-gray-100"
+          >
+            Reports
+          </Link>
+
+          {/* KB: Help shortcut hint */}
+          <button
+            onClick={() => setShowHelp(true)}
+            className="text-sm px-2 py-1 rounded text-gray-400 hover:bg-gray-100"
+            title="Keyboard shortcuts (?)"
+          >
+            ?
+          </button>
         </div>
       </div>
+
+      {/* TM: Save as Template form */}
+      {showSaveTemplate && (
+        <div className="px-4 py-3 border-b bg-blue-50">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveTemplateMutation.mutate({
+                name: templateName,
+                description: templateDesc || undefined,
+              });
+            }}
+            className="flex items-center gap-2 flex-wrap"
+          >
+            <input
+              type="text"
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              placeholder="Template name..."
+              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-48"
+              required
+              autoFocus
+            />
+            <input
+              type="text"
+              value={templateDesc}
+              onChange={(e) => setTemplateDesc(e.target.value)}
+              placeholder="Description (optional)"
+              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-56"
+            />
+            <button
+              type="submit"
+              disabled={saveTemplateMutation.isPending}
+              className="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saveTemplateMutation.isPending ? 'Saving...' : 'Save Template'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSaveTemplate(false)}
+              className="px-3 py-1.5 text-gray-600 hover:text-gray-800 text-sm"
+            >
+              Cancel
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* SF-002: Filter bar */}
       <div className="px-4 py-2 border-b bg-white flex items-center gap-3 flex-wrap">
         <input
+          ref={searchInputRef}
           type="text"
           value={filters.searchQuery}
           onChange={(e) => setFilters((f) => ({ ...f, searchQuery: e.target.value }))}
@@ -550,6 +724,14 @@ export default function BoardPage() {
 
       {/* Board content */}
       <div ref={boardScrollRef} className="flex-1 overflow-auto p-4">
+        {/* VW-002: List view */}
+        {viewMode === 'list' ? (
+          <ListView
+            cards={filteredCards}
+            columns={sortedColumns}
+            onCardClick={(cardId) => setSelectedCardId(cardId)}
+          />
+        ) : (
         <DragDropContext onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
           {swimlaneMode ? (
             <SwimlaneBoard
@@ -626,6 +808,11 @@ export default function BoardPage() {
                                 onUpdateColumn={(data) =>
                                   updateColumnMutation.mutate({ columnId: column.id, data })
                                 }
+                                onRegisterAddCard={
+                                  index === 0
+                                    ? (fn) => { firstColumnAddCardRef.current = fn; }
+                                    : undefined
+                                }
                               />
                             )}
                           </div>
@@ -640,7 +827,10 @@ export default function BoardPage() {
             </Droppable>
           )}
         </DragDropContext>
+        )}
       </div>
+
+      {showHelp && <KeyboardShortcutHelp onClose={() => setShowHelp(false)} />}
 
       {selectedCardId && (
         <CardDetailModal cardId={selectedCardId} onClose={() => setSelectedCardId(null)} />
@@ -1339,6 +1529,7 @@ function KanbanColumn({
   onCollapse,
   onDelete,
   onUpdateColumn,
+  onRegisterAddCard,
 }: {
   column: Column;
   cards: Card[];
@@ -1350,10 +1541,19 @@ function KanbanColumn({
   onCollapse: () => void;
   onDelete: () => void;
   onUpdateColumn: (data: { title?: string; color?: string | null; wipLimit?: number | null; description?: string | null }) => void;
+  onRegisterAddCard?: (fn: () => void) => void;
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // KB: Register the "trigger add card" function for keyboard shortcut 'n'
+  useEffect(() => {
+    if (onRegisterAddCard) {
+      onRegisterAddCard(() => setIsAdding(true));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onRegisterAddCard]);
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1451,7 +1651,12 @@ function KanbanColumn({
             {...provided.droppableProps}
             className={`flex-1 overflow-y-auto px-2 pb-2 min-h-[2rem] ${snapshot.isDraggingOver ? 'bg-blue-50' : ''}`}
           >
-            {cards.map((card, index) => (
+            {cards.map((card, index) => {
+              // AG-001: Card aging
+              const agingDays = getCardAgingDays(card);
+              const agingClass = getCardAgingClass(agingDays);
+
+              return (
               <Draggable key={card.id} draggableId={card.id} index={index}>
                 {(provided, snapshot) => (
                   <div
@@ -1459,7 +1664,7 @@ function KanbanColumn({
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
                     onClick={() => onCardClick(card.id)}
-                    className={`bg-white rounded-lg shadow-sm border p-3 mb-2 cursor-grab ${snapshot.isDragging ? 'shadow-lg rotate-2' : 'hover:shadow-md'}`}
+                    className={`bg-white rounded-lg shadow-sm border p-3 mb-2 cursor-grab ${snapshot.isDragging ? 'shadow-lg rotate-2' : 'hover:shadow-md'} ${agingClass}`}
                   >
                     <div className="flex items-start gap-2">
                       <div
@@ -1473,6 +1678,12 @@ function KanbanColumn({
                           <span className="text-xs text-gray-400">
                             KF-{String(card.cardNumber).padStart(3, '0')}
                           </span>
+                          {/* AG-001: Idle badge */}
+                          {agingDays > 3 && (
+                            <span className="text-xs text-gray-300" title={`Last updated ${agingDays} days ago`}>
+                              {agingDays}d idle
+                            </span>
+                          )}
                           {card.labels?.map((cl) => (
                             <span
                               key={cl.label.id}
@@ -1581,7 +1792,8 @@ function KanbanColumn({
                   </div>
                 )}
               </Draggable>
-            ))}
+              );
+            })}
             {provided.placeholder}
           </div>
         )}

@@ -9,6 +9,8 @@ import RegisterPage from '@/pages/RegisterPage';
 import WorkspacesPage from '@/pages/WorkspacesPage';
 import WorkspaceDetailPage from '@/pages/WorkspaceDetailPage';
 import BoardPage from '@/pages/BoardPage';
+import AutomationPage from '@/pages/AutomationPage';
+import ReportPage from '@/pages/ReportPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,6 +38,8 @@ function AppRoutes() {
         <Route path="/" element={<WorkspacesPage />} />
         <Route path="/workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
         <Route path="/boards/:boardId" element={<BoardPage />} />
+        <Route path="/boards/:boardId/automations" element={<AutomationPage />} />
+        <Route path="/boards/:boardId/reports" element={<ReportPage />} />
       </Route>
     </Routes>
   );

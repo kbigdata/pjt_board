@@ -3,9 +3,10 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { Role, Visibility } from '@prisma/client';
+import { Priority, Role, Visibility } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBoardDto } from './dto/create-board.dto';
 import { UpdateBoardDto } from './dto/update-board.dto';
@@ -338,5 +339,218 @@ export class BoardService {
     });
 
     return favorites.map((f) => f.board);
+  }
+
+  async exportToJson(boardId: string) {
+    const board = await this.prisma.board.findUnique({
+      where: { id: boardId },
+      include: {
+        columns: {
+          where: { archivedAt: null },
+          orderBy: { position: 'asc' },
+        },
+        swimlanes: {
+          where: { archivedAt: null },
+          orderBy: { position: 'asc' },
+        },
+        labels: true,
+        cards: {
+          where: { archivedAt: null },
+          include: {
+            assignees: {
+              include: { user: { select: { id: true, name: true, email: true } } },
+            },
+            labels: { include: { label: true } },
+            checklists: { include: { items: { orderBy: { position: 'asc' } } } },
+            tags: true,
+          },
+          orderBy: { position: 'asc' },
+        },
+      },
+    });
+
+    if (!board) {
+      throw new NotFoundException('Board not found');
+    }
+
+    return {
+      exportVersion: 1,
+      exportedAt: new Date().toISOString(),
+      board: {
+        title: board.title,
+        description: board.description,
+        visibility: board.visibility,
+        columns: board.columns,
+        swimlanes: board.swimlanes,
+        labels: board.labels,
+        cards: board.cards,
+      },
+    };
+  }
+
+  async importFromJson(workspaceId: string, userId: string, data: Record<string, unknown>) {
+    if (!data || !data['board']) {
+      throw new BadRequestException('Invalid import data: missing board field');
+    }
+
+    const boardData = data['board'] as Record<string, unknown>;
+    const columns = (boardData['columns'] as any[]) ?? [];
+    const swimlanes = (boardData['swimlanes'] as any[]) ?? [];
+    const labels = (boardData['labels'] as any[]) ?? [];
+    const cards = (boardData['cards'] as any[]) ?? [];
+
+    const workspace = await this.prisma.workspace.findUnique({ where: { id: workspaceId } });
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    const lastBoard = await this.prisma.board.findFirst({
+      where: { workspaceId },
+      orderBy: { position: 'desc' },
+      select: { position: true },
+    });
+    const position = lastBoard ? lastBoard.position + 1024 : 1024;
+
+    return this.prisma.$transaction(async (tx) => {
+      const newBoard = await tx.board.create({
+        data: {
+          workspaceId,
+          title: (boardData['title'] as string) ?? 'Imported Board',
+          description: boardData['description'] as string | undefined,
+          visibility: (boardData['visibility'] as Visibility) ?? Visibility.PRIVATE,
+          position,
+          createdById: userId,
+        },
+      });
+
+      await tx.boardMember.create({
+        data: { boardId: newBoard.id, userId, role: Role.OWNER },
+      });
+
+      // Create columns and build mapping
+      const columnIdMap: Record<string, string> = {};
+      for (const col of columns) {
+        const newCol = await tx.column.create({
+          data: {
+            boardId: newBoard.id,
+            title: col.title ?? 'Column',
+            columnType: col.columnType ?? 'CUSTOM',
+            position: col.position ?? 1024,
+            wipLimit: col.wipLimit ?? null,
+            color: col.color ?? null,
+          },
+        });
+        if (col.id) {
+          columnIdMap[col.id] = newCol.id;
+        }
+      }
+
+      // Create swimlanes and build mapping
+      const swimlaneIdMap: Record<string, string> = {};
+      for (const sw of swimlanes) {
+        const newSw = await tx.swimlane.create({
+          data: {
+            boardId: newBoard.id,
+            title: sw.title ?? 'Swimlane',
+            position: sw.position ?? 1024,
+            color: sw.color ?? null,
+            isDefault: sw.isDefault ?? false,
+          },
+        });
+        if (sw.id) {
+          swimlaneIdMap[sw.id] = newSw.id;
+        }
+      }
+
+      // Create labels and build mapping
+      const labelIdMap: Record<string, string> = {};
+      for (const lbl of labels) {
+        const newLbl = await tx.label.create({
+          data: {
+            boardId: newBoard.id,
+            name: lbl.name ?? 'Label',
+            color: lbl.color ?? '#808080',
+          },
+        });
+        if (lbl.id) {
+          labelIdMap[lbl.id] = newLbl.id;
+        }
+      }
+
+      // Create cards
+      let cardNumber = 1;
+      for (const card of cards) {
+        const mappedColumnId = card.columnId ? (columnIdMap[card.columnId] ?? null) : null;
+        if (!mappedColumnId) {
+          continue;
+        }
+
+        const newCard = await tx.card.create({
+          data: {
+            boardId: newBoard.id,
+            columnId: mappedColumnId,
+            swimlaneId: card.swimlaneId ? (swimlaneIdMap[card.swimlaneId] ?? null) : null,
+            cardNumber: cardNumber++,
+            title: card.title ?? 'Card',
+            description: card.description ?? null,
+            priority: (card.priority as Priority) ?? Priority.MEDIUM,
+            position: card.position ?? 1024,
+            startDate: card.startDate ? new Date(card.startDate) : null,
+            dueDate: card.dueDate ? new Date(card.dueDate) : null,
+            estimatedHours: card.estimatedHours ?? null,
+            createdById: userId,
+          },
+        });
+
+        // Restore labels
+        if (Array.isArray(card.labels)) {
+          for (const cl of card.labels) {
+            const mappedLabelId = cl.labelId ? (labelIdMap[cl.labelId] ?? null) : null;
+            if (mappedLabelId) {
+              await tx.cardLabel.create({ data: { cardId: newCard.id, labelId: mappedLabelId } });
+            }
+          }
+        }
+
+        // Restore tags
+        if (Array.isArray(card.tags)) {
+          for (const ct of card.tags) {
+            if (ct.tag) {
+              await tx.cardTag.create({ data: { cardId: newCard.id, tag: ct.tag } });
+            }
+          }
+        }
+
+        // Restore checklists
+        if (Array.isArray(card.checklists)) {
+          for (const checklist of card.checklists) {
+            const newChecklist = await tx.checklist.create({
+              data: {
+                cardId: newCard.id,
+                title: checklist.title ?? 'Checklist',
+                position: checklist.position ?? 1024,
+              },
+            });
+            if (Array.isArray(checklist.items)) {
+              for (const item of checklist.items) {
+                await tx.checklistItem.create({
+                  data: {
+                    checklistId: newChecklist.id,
+                    title: item.title ?? 'Item',
+                    position: item.position ?? 1024,
+                    isChecked: false,
+                  },
+                });
+              }
+            }
+          }
+        }
+      }
+
+      this.logger.log(
+        `Board imported as "${newBoard.title}" (${newBoard.id}) in workspace ${workspaceId}`,
+      );
+      return newBoard;
+    });
   }
 }

@@ -18,6 +18,8 @@ import { AttachmentModule } from './modules/attachment/attachment.module';
 import { SwimlaneModule } from './modules/swimlane/swimlane.module';
 import { CardLinkModule } from './modules/card-link/card-link.module';
 import { CardTagModule } from './modules/card-tag/card-tag.module';
+import { AutomationModule } from './modules/automation/automation.module';
+import { TemplateModule } from './modules/template/template.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { CardTagModule } from './modules/card-tag/card-tag.module';
     SwimlaneModule,
     CardLinkModule,
     CardTagModule,
+    AutomationModule,
+    TemplateModule,
   ],
 })
 export class AppModule {}

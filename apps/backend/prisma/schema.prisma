@@ -91,6 +91,7 @@ model User {
   notifications        Notification[]
   favorites            BoardFavorite[]
   notificationSettings NotificationSetting[]
+  boardTemplates       BoardTemplate[]
 
   @@map("users")
 }
@@ -433,4 +434,18 @@ model NotificationSetting {
 
   @@unique([userId, type])
   @@map("notification_settings")
+}
+
+model BoardTemplate {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  templateData Json     @map("template_data")
+  createdById  String   @map("created_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@map("board_templates")
 }

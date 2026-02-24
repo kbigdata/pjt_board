@@ -51,6 +51,8 @@ export interface Card {
   dueDate: string | null;
   createdById: string;
   archivedAt: string | null;
+  createdAt?: string;
+  updatedAt?: string;
   column?: { id: string; title: string };
   assignees?: Array<{ user: { id: string; name: string; avatarUrl: string | null } }>;
   labels?: Array<{ label: { id: string; name: string; color: string } }>;
@@ -154,4 +156,12 @@ export const boardsApi = {
 
   getFavorites: () =>
     apiClient.get<Board[]>('/boards/favorites').then((r) => r.data),
+
+  // IO-001: Export board as JSON
+  exportBoard: (boardId: string) =>
+    apiClient.get(`/boards/${boardId}/export`).then((r) => r.data),
+
+  // IO-002: Import board from JSON
+  importBoard: (workspaceId: string, data: unknown) =>
+    apiClient.post(`/workspaces/${workspaceId}/boards/import`, data).then((r) => r.data),
 };

@@ -3,8 +3,9 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
-import { Role, Visibility } from '@prisma/client';
+import { ColumnType, Priority, Role, Visibility } from '@prisma/client';
 import { BoardService } from './board.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -67,6 +68,34 @@ describe('BoardService', () => {
       },
       user: {
         findUnique: jest.fn(),
+      },
+      column: {
+        create: jest.fn(),
+        createMany: jest.fn(),
+      },
+      swimlane: {
+        create: jest.fn(),
+        createMany: jest.fn(),
+      },
+      label: {
+        create: jest.fn(),
+        createMany: jest.fn(),
+      },
+      card: {
+        create: jest.fn(),
+        aggregate: jest.fn(),
+      },
+      cardLabel: {
+        create: jest.fn(),
+      },
+      cardTag: {
+        create: jest.fn(),
+      },
+      checklist: {
+        create: jest.fn(),
+      },
+      checklistItem: {
+        create: jest.fn(),
       },
       $transaction: jest.fn().mockImplementation((fn) => fn(prisma)),
     };
@@ -527,6 +556,197 @@ describe('BoardService', () => {
       const result = await service.findFavorites('user-1');
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('exportToJson', () => {
+    const mockBoardWithDetails = {
+      ...mockBoard,
+      columns: [
+        {
+          id: 'col-1',
+          boardId: 'board-1',
+          title: 'To Do',
+          columnType: ColumnType.TODO,
+          position: 1024,
+          wipLimit: null,
+          color: null,
+          archivedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      swimlanes: [
+        {
+          id: 'sw-1',
+          boardId: 'board-1',
+          title: 'Default',
+          position: 1024,
+          color: null,
+          isDefault: true,
+          archivedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      labels: [
+        { id: 'lbl-1', boardId: 'board-1', name: 'Bug', color: '#FF0000', createdAt: new Date() },
+      ],
+      cards: [
+        {
+          id: 'card-1',
+          boardId: 'board-1',
+          columnId: 'col-1',
+          swimlaneId: null,
+          cardNumber: 1,
+          title: 'Test Card',
+          description: null,
+          priority: Priority.MEDIUM,
+          position: 1024,
+          archivedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          assignees: [],
+          labels: [],
+          checklists: [],
+          tags: [],
+        },
+      ],
+    };
+
+    it('should export board with all entities', async () => {
+      prisma.board.findUnique.mockResolvedValue(mockBoardWithDetails);
+
+      const result = await service.exportToJson('board-1');
+
+      expect(result.exportVersion).toBe(1);
+      expect(result.exportedAt).toBeTruthy();
+      expect(result.board.title).toBe('Sprint Board');
+      expect(result.board.columns).toHaveLength(1);
+      expect(result.board.cards).toHaveLength(1);
+      expect(result.board.labels).toHaveLength(1);
+    });
+
+    it('should throw NotFoundException for non-existent board', async () => {
+      prisma.board.findUnique.mockResolvedValue(null);
+
+      await expect(service.exportToJson('non-existent')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('importFromJson', () => {
+    const validImportData = {
+      exportVersion: 1,
+      board: {
+        title: 'Imported Board',
+        description: 'Imported',
+        visibility: Visibility.PRIVATE,
+        columns: [
+          {
+            id: 'col-old-1',
+            title: 'To Do',
+            columnType: ColumnType.TODO,
+            position: 1024,
+            wipLimit: null,
+            color: null,
+          },
+        ],
+        swimlanes: [
+          {
+            id: 'sw-old-1',
+            title: 'Default',
+            position: 1024,
+            color: null,
+            isDefault: true,
+          },
+        ],
+        labels: [
+          { id: 'lbl-old-1', name: 'Bug', color: '#FF0000' },
+        ],
+        cards: [
+          {
+            id: 'card-old-1',
+            columnId: 'col-old-1',
+            swimlaneId: null,
+            title: 'Test Card',
+            description: null,
+            priority: Priority.MEDIUM,
+            position: 1024,
+            labels: [],
+            tags: [],
+            checklists: [],
+          },
+        ],
+      },
+    };
+
+    it('should import board and recreate entities', async () => {
+      const newBoard = { ...mockBoard, id: 'board-new', title: 'Imported Board' };
+      prisma.workspace.findUnique.mockResolvedValue(mockWorkspace);
+      prisma.board.findFirst.mockResolvedValue({ position: 1024 });
+      prisma.board.create.mockResolvedValue(newBoard);
+      prisma.boardMember.create.mockResolvedValue({});
+      prisma.column.create.mockResolvedValue({ id: 'col-new-1' });
+      prisma.swimlane.create.mockResolvedValue({ id: 'sw-new-1' });
+      prisma.label.create.mockResolvedValue({ id: 'lbl-new-1' });
+      prisma.card.create.mockResolvedValue({ id: 'card-new-1' });
+
+      const result = await service.importFromJson('ws-1', 'user-1', validImportData);
+
+      expect(result.id).toBe('board-new');
+      expect(prisma.board.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            workspaceId: 'ws-1',
+            title: 'Imported Board',
+            createdById: 'user-1',
+          }),
+        }),
+      );
+      expect(prisma.column.create).toHaveBeenCalled();
+      expect(prisma.swimlane.create).toHaveBeenCalled();
+      expect(prisma.label.create).toHaveBeenCalled();
+      expect(prisma.card.create).toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException for missing board field', async () => {
+      await expect(
+        service.importFromJson('ws-1', 'user-1', { exportVersion: 1 }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw NotFoundException for non-existent workspace', async () => {
+      prisma.workspace.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.importFromJson('non-existent', 'user-1', validImportData),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should skip cards with unknown column ids', async () => {
+      const dataWithBadColumnRef = {
+        ...validImportData,
+        board: {
+          ...validImportData.board,
+          cards: [
+            { id: 'card-old-1', columnId: 'unknown-col', title: 'Bad Card', labels: [], tags: [], checklists: [] },
+          ],
+        },
+      };
+
+      const newBoard = { ...mockBoard, id: 'board-new', title: 'Imported Board' };
+      prisma.workspace.findUnique.mockResolvedValue(mockWorkspace);
+      prisma.board.findFirst.mockResolvedValue(null);
+      prisma.board.create.mockResolvedValue(newBoard);
+      prisma.boardMember.create.mockResolvedValue({});
+      prisma.column.create.mockResolvedValue({ id: 'col-new-1' });
+      prisma.swimlane.create.mockResolvedValue({ id: 'sw-new-1' });
+      prisma.label.create.mockResolvedValue({ id: 'lbl-new-1' });
+
+      await service.importFromJson('ws-1', 'user-1', dataWithBadColumnRef);
+
+      // card.create should NOT have been called because column mapping failed
+      expect(prisma.card.create).not.toHaveBeenCalled();
     });
   });
 });

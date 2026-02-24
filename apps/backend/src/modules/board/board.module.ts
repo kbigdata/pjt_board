@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
@@ -9,12 +9,14 @@ import { BoardScheduler } from './board.scheduler';
 import { WorkspaceModule } from '../workspace/workspace.module';
 import { ActivityModule } from '../activity/activity.module';
 import { NotificationModule } from '../notification/notification.module';
+import { AutomationModule } from '../automation/automation.module';
 
 @Module({
   imports: [
     WorkspaceModule,
     ActivityModule,
     NotificationModule,
+    forwardRef(() => AutomationModule),
     ScheduleModule.forRoot(),
     JwtModule.registerAsync({
       inject: [ConfigService],

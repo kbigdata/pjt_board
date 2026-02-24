@@ -211,6 +211,40 @@ export class BoardController {
     return { message: 'Board permanently deleted' };
   }
 
+  // ── Export/Import endpoints ──
+
+  @Get('boards/:id/export')
+  @ApiOperation({ summary: 'Export board as JSON' })
+  @ApiParam({ name: 'id', description: 'Board ID' })
+  @ApiResponse({ status: 200, description: 'Board export JSON' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Not a board member' })
+  @ApiResponse({ status: 404, description: 'Board not found' })
+  async exportToJson(
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+  ) {
+    await this.requireBoardMembership(id, user.id);
+    return this.boardService.exportToJson(id);
+  }
+
+  @Post('workspaces/:workspaceId/boards/import')
+  @ApiOperation({ summary: 'Import board from JSON in workspace' })
+  @ApiParam({ name: 'workspaceId', description: 'Workspace ID' })
+  @ApiResponse({ status: 201, description: 'Board imported successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid import data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Not a workspace member' })
+  @ApiResponse({ status: 404, description: 'Workspace not found' })
+  async importFromJson(
+    @CurrentUser() user: { id: string },
+    @Param('workspaceId') workspaceId: string,
+    @Body() data: Record<string, unknown>,
+  ) {
+    await this.requireWorkspaceMembership(workspaceId, user.id);
+    return this.boardService.importFromJson(workspaceId, user.id, data);
+  }
+
   // ── Member management endpoints ──
 
   @Post('boards/:id/members')
