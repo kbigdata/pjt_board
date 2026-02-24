@@ -1,4 +1,14 @@
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useAuthStore } from '@/stores/auth';
+import AuthLayout from '@/components/layout/AuthLayout';
+import AppLayout from '@/components/layout/AppLayout';
+import LoginPage from '@/pages/LoginPage';
+import RegisterPage from '@/pages/RegisterPage';
+import WorkspacesPage from '@/pages/WorkspacesPage';
+import WorkspaceDetailPage from '@/pages/WorkspaceDetailPage';
+import BoardPage from '@/pages/BoardPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -9,21 +19,34 @@ const queryClient = new QueryClient({
   },
 });
 
-function App() {
+function AppRoutes() {
+  const { initialize } = useAuthStore();
+
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 py-4">
-            <h1 className="text-2xl font-bold text-gray-900">KanFlow</h1>
-          </div>
-        </header>
-        <main className="max-w-7xl mx-auto px-4 py-8">
-          <p className="text-gray-600">Kanban board application</p>
-        </main>
-      </div>
-    </QueryClientProvider>
+    <Routes>
+      <Route element={<AuthLayout />}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+      </Route>
+      <Route element={<AppLayout />}>
+        <Route path="/" element={<WorkspacesPage />} />
+        <Route path="/workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
+        <Route path="/boards/:boardId" element={<BoardPage />} />
+      </Route>
+    </Routes>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </QueryClientProvider>
+  );
+}
