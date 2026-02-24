@@ -9,6 +9,12 @@ export class CreateColumnDto {
   @MaxLength(100)
   title!: string;
 
+  @ApiPropertyOptional({ example: 'Work items that need to be started' })
+  @IsString()
+  @MaxLength(500)
+  @IsOptional()
+  description?: string;
+
   @ApiPropertyOptional({ enum: ColumnType, default: ColumnType.CUSTOM })
   @IsEnum(ColumnType)
   @IsOptional()

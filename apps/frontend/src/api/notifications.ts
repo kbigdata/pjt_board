@@ -27,4 +27,18 @@ export const notificationsApi = {
 
   markAllAsRead: () =>
     apiClient.post('/notifications/read-all').then((r) => r.data),
+
+  // NF-002~007: Notification settings
+  getSettings: () =>
+    apiClient.get<NotificationSetting[]>('/notifications/settings').then((r) => r.data),
+
+  updateSetting: (type: string, enabled: boolean) =>
+    apiClient.patch<NotificationSetting>('/notifications/settings', { type, enabled }).then((r) => r.data),
 };
+
+export interface NotificationSetting {
+  id: string;
+  userId: string;
+  type: string;
+  enabled: boolean;
+}

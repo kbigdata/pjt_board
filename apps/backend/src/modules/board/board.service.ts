@@ -294,4 +294,49 @@ export class BoardService {
       orderBy: { archivedAt: 'desc' },
     });
   }
+
+  async toggleFavorite(boardId: string, userId: string): Promise<{ favorited: boolean }> {
+    const board = await this.prisma.board.findUnique({ where: { id: boardId } });
+
+    if (!board) {
+      throw new NotFoundException('Board not found');
+    }
+
+    const existing = await this.prisma.boardFavorite.findUnique({
+      where: { boardId_userId: { boardId, userId } },
+    });
+
+    if (existing) {
+      await this.prisma.boardFavorite.delete({ where: { id: existing.id } });
+      this.logger.log(`Board "${board.title}" removed from favorites by user ${userId}`);
+      return { favorited: false };
+    }
+
+    await this.prisma.boardFavorite.create({
+      data: { boardId, userId },
+    });
+    this.logger.log(`Board "${board.title}" added to favorites by user ${userId}`);
+    return { favorited: true };
+  }
+
+  async findFavorites(userId: string) {
+    const favorites = await this.prisma.boardFavorite.findMany({
+      where: { userId },
+      include: {
+        board: {
+          include: {
+            createdBy: {
+              select: { id: true, name: true, avatarUrl: true },
+            },
+            _count: {
+              select: { members: true, cards: true },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return favorites.map((f) => f.board);
+  }
 }

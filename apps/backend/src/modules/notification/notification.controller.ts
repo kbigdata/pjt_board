@@ -3,6 +3,7 @@ import {
   Get,
   Patch,
   Post,
+  Body,
   Param,
   Query,
   UseGuards,
@@ -18,6 +19,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { NotificationService } from './notification.service';
+import { UpdateNotificationSettingDto } from './dto/update-notification-setting.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -55,6 +57,26 @@ export class NotificationController {
   async getUnreadCount(@CurrentUser() user: { id: string }) {
     const count = await this.notificationService.countUnread(user.id);
     return { count };
+  }
+
+  @Get('settings')
+  @ApiOperation({ summary: 'Get notification settings for the current user' })
+  @ApiResponse({ status: 200, description: 'Notification settings returned' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getSettings(@CurrentUser() user: { id: string }) {
+    return this.notificationService.getSettings(user.id);
+  }
+
+  @Patch('settings')
+  @ApiOperation({ summary: 'Update a notification setting' })
+  @ApiResponse({ status: 200, description: 'Notification setting updated' })
+  @ApiResponse({ status: 400, description: 'Invalid request body' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  updateSetting(
+    @CurrentUser() user: { id: string },
+    @Body() dto: UpdateNotificationSettingDto,
+  ) {
+    return this.notificationService.updateSetting(user.id, dto.type, dto.enabled);
   }
 
   @Patch(':id/read')

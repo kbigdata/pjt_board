@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -25,6 +25,16 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 const PRIORITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+
+const COLUMN_PRESET_COLORS = [
+  { label: 'Red', value: '#ef4444' },
+  { label: 'Blue', value: '#3b82f6' },
+  { label: 'Green', value: '#22c55e' },
+  { label: 'Yellow', value: '#eab308' },
+  { label: 'Purple', value: '#a855f7' },
+  { label: 'Orange', value: '#f97316' },
+  { label: 'Gray', value: '#6b7280' },
+];
 
 function getDueDateStatus(
   dueDate: string | null,
@@ -57,6 +67,40 @@ function getDueDateStatus(
   };
 }
 
+// SF-002, SF-005~010: Advanced filter state shape
+interface FilterState {
+  searchQuery: string;
+  priorities: Set<string>;
+  labelIds: Set<string>;
+  assigneeIds: Set<string>;
+  dueDateStart: string;
+  dueDateEnd: string;
+  hasDueDate: boolean;
+}
+
+function getEmptyFilters(): FilterState {
+  return {
+    searchQuery: '',
+    priorities: new Set(),
+    labelIds: new Set(),
+    assigneeIds: new Set(),
+    dueDateStart: '',
+    dueDateEnd: '',
+    hasDueDate: false,
+  };
+}
+
+function countActiveFilters(f: FilterState): number {
+  let count = 0;
+  if (f.searchQuery) count++;
+  if (f.priorities.size > 0) count++;
+  if (f.labelIds.size > 0) count++;
+  if (f.assigneeIds.size > 0) count++;
+  if (f.dueDateStart || f.dueDateEnd) count++;
+  if (f.hasDueDate) count++;
+  return count;
+}
+
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const queryClient = useQueryClient();
@@ -70,11 +114,9 @@ export default function BoardPage() {
 
   const { toggleColumn, isCollapsed } = useColumnCollapseStore();
 
-  // Filter state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterPriority, setFilterPriority] = useState<string>('');
-  const [filterLabel, setFilterLabel] = useState<string>('');
-  const [filterAssignee, setFilterAssignee] = useState<string>('');
+  // SF-002: Advanced filter panel toggle
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [filters, setFilters] = useState<FilterState>(getEmptyFilters());
 
   // Swimlane state
   const [swimlaneMode, setSwimlaneMode] = useState(false);
@@ -124,21 +166,31 @@ export default function BoardPage() {
     };
   }, [cards]);
 
-  // Filter cards
+  // SF-002~010: Apply advanced filters
   const filteredCards = useMemo(() => {
     if (!cards) return [];
     return cards.filter((card) => {
+      const { searchQuery, priorities, labelIds, assigneeIds, dueDateStart, dueDateEnd, hasDueDate } = filters;
+
       if (searchQuery && !card.title.toLowerCase().includes(searchQuery.toLowerCase()))
         return false;
-      if (filterPriority && card.priority !== filterPriority) return false;
-      if (filterLabel && !card.labels?.some((cl) => cl.label.id === filterLabel)) return false;
-      if (filterAssignee && !card.assignees?.some((a) => a.user.id === filterAssignee))
+      if (priorities.size > 0 && !priorities.has(card.priority)) return false;
+      if (labelIds.size > 0 && !card.labels?.some((cl) => labelIds.has(cl.label.id)))
         return false;
+      if (assigneeIds.size > 0 && !card.assignees?.some((a) => assigneeIds.has(a.user.id)))
+        return false;
+      if (hasDueDate && !card.dueDate) return false;
+      if (dueDateStart && card.dueDate && new Date(card.dueDate) < new Date(dueDateStart))
+        return false;
+      if (dueDateEnd && card.dueDate && new Date(card.dueDate) > new Date(dueDateEnd))
+        return false;
+
       return true;
     });
-  }, [cards, searchQuery, filterPriority, filterLabel, filterAssignee]);
+  }, [cards, filters]);
 
-  const hasActiveFilters = searchQuery || filterPriority || filterLabel || filterAssignee;
+  const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters]);
+  const hasActiveFilters = activeFilterCount > 0;
 
   // DD-009: Optimistic update for card move
   const moveCardMutation = useMutation({
@@ -229,6 +281,20 @@ export default function BoardPage() {
       queryClient.invalidateQueries({ queryKey: ['columns', boardId] });
       queryClient.invalidateQueries({ queryKey: ['cards', boardId] });
       setDeleteColumnState(null);
+    },
+  });
+
+  // CL-006, CL-009, CL-010: Update column mutation
+  const updateColumnMutation = useMutation({
+    mutationFn: ({
+      columnId,
+      data,
+    }: {
+      columnId: string;
+      data: { title?: string; color?: string | null; wipLimit?: number | null; description?: string | null };
+    }) => boardsApi.updateColumn(columnId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['columns', boardId] });
     },
   });
 
@@ -430,69 +496,57 @@ export default function BoardPage() {
         </div>
       </div>
 
-      {/* Search & Filter bar */}
+      {/* SF-002: Filter bar */}
       <div className="px-4 py-2 border-b bg-white flex items-center gap-3 flex-wrap">
         <input
           type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          value={filters.searchQuery}
+          onChange={(e) => setFilters((f) => ({ ...f, searchQuery: e.target.value }))}
           placeholder="Search cards..."
           className="px-3 py-1.5 border border-gray-300 rounded-md text-sm w-48 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
-        <select
-          value={filterPriority}
-          onChange={(e) => setFilterPriority(e.target.value)}
-          className="px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+
+        {/* SF-002: Advanced filters toggle button */}
+        <button
+          onClick={() => setShowFilterPanel((v) => !v)}
+          className={`relative text-sm px-3 py-1.5 rounded border transition-colors ${
+            showFilterPanel || activeFilterCount > 0
+              ? 'bg-blue-50 border-blue-300 text-blue-700'
+              : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+          }`}
         >
-          <option value="">All priorities</option>
-          {PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-        {allLabels.length > 0 && (
-          <select
-            value={filterLabel}
-            onChange={(e) => setFilterLabel(e.target.value)}
-            className="px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
-            <option value="">All labels</option>
-            {allLabels.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        )}
-        {allAssignees.length > 0 && (
-          <select
-            value={filterAssignee}
-            onChange={(e) => setFilterAssignee(e.target.value)}
-            className="px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
-            <option value="">All assignees</option>
-            {allAssignees.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-        )}
+          <span className="flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+            </svg>
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="ml-0.5 bg-blue-600 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">
+                {activeFilterCount}
+              </span>
+            )}
+          </span>
+        </button>
+
         {hasActiveFilters && (
           <button
-            onClick={() => {
-              setSearchQuery('');
-              setFilterPriority('');
-              setFilterLabel('');
-              setFilterAssignee('');
-            }}
+            onClick={() => setFilters(getEmptyFilters())}
             className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
           >
-            Clear filters
+            Clear all
           </button>
         )}
       </div>
+
+      {/* SF-002: Advanced filter panel */}
+      {showFilterPanel && (
+        <AdvancedFilterPanel
+          filters={filters}
+          onFiltersChange={setFilters}
+          allLabels={allLabels}
+          allAssignees={allAssignees}
+        />
+      )}
 
       {/* Board content */}
       <div ref={boardScrollRef} className="flex-1 overflow-auto p-4">
@@ -569,6 +623,9 @@ export default function BoardPage() {
                                     hasCards: colCards.length > 0,
                                   });
                                 }}
+                                onUpdateColumn={(data) =>
+                                  updateColumnMutation.mutate({ columnId: column.id, data })
+                                }
                               />
                             )}
                           </div>
@@ -622,6 +679,134 @@ export default function BoardPage() {
           isPending={deleteColumnMutation.isPending}
         />
       )}
+    </div>
+  );
+}
+
+// SF-002: Advanced filter panel component
+function AdvancedFilterPanel({
+  filters,
+  onFiltersChange,
+  allLabels,
+  allAssignees,
+}: {
+  filters: FilterState;
+  onFiltersChange: (f: FilterState) => void;
+  allLabels: Array<{ id: string; name: string; color: string }>;
+  allAssignees: Array<{ id: string; name: string }>;
+}) {
+  const toggleSet = <T,>(set: Set<T>, item: T): Set<T> => {
+    const next = new Set(set);
+    if (next.has(item)) next.delete(item);
+    else next.add(item);
+    return next;
+  };
+
+  return (
+    <div className="px-4 py-3 border-b bg-gray-50 flex flex-wrap gap-6">
+      {/* Priority multi-select */}
+      <div>
+        <p className="text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Priority</p>
+        <div className="flex flex-wrap gap-1.5">
+          {PRIORITIES.map((p) => (
+            <button
+              key={p}
+              onClick={() =>
+                onFiltersChange({ ...filters, priorities: toggleSet(filters.priorities, p) })
+              }
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                filters.priorities.has(p)
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'text-gray-600 border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Assignee multi-select */}
+      {allAssignees.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Assignee</p>
+          <div className="flex flex-wrap gap-1.5">
+            {allAssignees.map((a) => (
+              <button
+                key={a.id}
+                onClick={() =>
+                  onFiltersChange({ ...filters, assigneeIds: toggleSet(filters.assigneeIds, a.id) })
+                }
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  filters.assigneeIds.has(a.id)
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'text-gray-600 border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                {a.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Label multi-select */}
+      {allLabels.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Label</p>
+          <div className="flex flex-wrap gap-1.5">
+            {allLabels.map((l) => (
+              <button
+                key={l.id}
+                onClick={() =>
+                  onFiltersChange({ ...filters, labelIds: toggleSet(filters.labelIds, l.id) })
+                }
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  filters.labelIds.has(l.id)
+                    ? 'text-white border-transparent'
+                    : 'text-gray-600 border-gray-300 hover:border-gray-400'
+                }`}
+                style={
+                  filters.labelIds.has(l.id)
+                    ? { backgroundColor: l.color, borderColor: l.color }
+                    : {}
+                }
+              >
+                {l.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Due date range */}
+      <div>
+        <p className="text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Due Date</p>
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={filters.dueDateStart}
+            onChange={(e) => onFiltersChange({ ...filters, dueDateStart: e.target.value })}
+            className="text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <span className="text-xs text-gray-400">to</span>
+          <input
+            type="date"
+            value={filters.dueDateEnd}
+            onChange={(e) => onFiltersChange({ ...filters, dueDateEnd: e.target.value })}
+            className="text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={filters.hasDueDate}
+            onChange={(e) => onFiltersChange({ ...filters, hasDueDate: e.target.checked })}
+            className="rounded border-gray-300"
+          />
+          <span className="text-xs text-gray-600">Has due date</span>
+        </label>
+      </div>
     </div>
   );
 }
@@ -909,7 +1094,10 @@ function CollapsedColumn({
   dragHandleProps: DraggableProvidedDragHandleProps | null | undefined;
 }) {
   return (
-    <div className="flex flex-col bg-gray-100 rounded-lg h-full items-center">
+    <div
+      className="flex flex-col bg-gray-100 rounded-lg h-full items-center"
+      style={column.color ? { borderTop: `3px solid ${column.color}` } : {}}
+    >
       <div {...dragHandleProps} className="w-full px-1 py-2 flex justify-center cursor-grab">
         <button
           onClick={onExpand}
@@ -945,6 +1133,201 @@ function CollapsedColumn({
   );
 }
 
+// CL-006, CL-009, CL-010: Column settings popover
+function ColumnSettingsMenu({
+  column,
+  onUpdate,
+  onDelete,
+  onClose,
+}: {
+  column: Column;
+  onUpdate: (data: { title?: string; color?: string | null; wipLimit?: number | null; description?: string | null }) => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const [tab, setTab] = useState<'main' | 'color'>('main');
+  const [renameValue, setRenameValue] = useState(column.title);
+  const [wipValue, setWipValue] = useState(column.wipLimit != null ? String(column.wipLimit) : '');
+  const [descValue, setDescValue] = useState('');
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  const handleRename = () => {
+    const trimmed = renameValue.trim();
+    if (trimmed && trimmed !== column.title) {
+      onUpdate({ title: trimmed });
+    }
+    onClose();
+  };
+
+  const handleWipSave = () => {
+    const val = wipValue.trim();
+    if (val === '') {
+      onUpdate({ wipLimit: null });
+    } else {
+      const num = parseInt(val, 10);
+      if (!isNaN(num) && num > 0) {
+        onUpdate({ wipLimit: num });
+      }
+    }
+    onClose();
+  };
+
+  const handleDescSave = () => {
+    onUpdate({ description: descValue.trim() || null });
+    onClose();
+  };
+
+  const handleColorSelect = (color: string | null) => {
+    onUpdate({ color });
+    onClose();
+  };
+
+  return (
+    <div
+      ref={menuRef}
+      className="absolute right-0 top-full mt-1 z-30 bg-white rounded-lg shadow-lg border border-gray-200 w-56"
+      onClick={(e) => e.stopPropagation()}
+    >
+      {tab === 'color' ? (
+        <div className="p-3">
+          <div className="flex items-center gap-2 mb-3">
+            <button onClick={() => setTab('main')} className="text-gray-400 hover:text-gray-600 text-xs">
+              &larr;
+            </button>
+            <span className="text-sm font-medium text-gray-700">Set color</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {COLUMN_PRESET_COLORS.map(({ label, value }) => (
+              <button
+                key={value}
+                onClick={() => handleColorSelect(value)}
+                className="w-8 h-8 rounded-full border-2 transition-transform hover:scale-110"
+                style={{
+                  backgroundColor: value,
+                  borderColor: column.color === value ? '#1d4ed8' : 'transparent',
+                }}
+                title={label}
+              />
+            ))}
+            {/* Clear color */}
+            <button
+              onClick={() => handleColorSelect(null)}
+              className="w-8 h-8 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-500 text-xs"
+              title="No color"
+            >
+              &times;
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="py-1">
+          {/* Rename */}
+          <div className="px-3 py-2 border-b border-gray-100">
+            <p className="text-xs text-gray-500 mb-1">Rename</p>
+            <div className="flex gap-1">
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleRename();
+                  if (e.key === 'Escape') onClose();
+                }}
+                className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                autoFocus
+              />
+              <button
+                onClick={handleRename}
+                className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+
+          {/* Color */}
+          <button
+            onClick={() => setTab('color')}
+            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+          >
+            <span
+              className="w-3 h-3 rounded-full border border-gray-300"
+              style={column.color ? { backgroundColor: column.color } : { backgroundColor: 'transparent' }}
+            />
+            Set color
+          </button>
+
+          {/* WIP limit */}
+          <div className="px-3 py-2 border-t border-gray-100">
+            <p className="text-xs text-gray-500 mb-1">WIP limit (blank to remove)</p>
+            <div className="flex gap-1">
+              <input
+                type="number"
+                min="1"
+                value={wipValue}
+                onChange={(e) => setWipValue(e.target.value)}
+                placeholder="e.g. 5"
+                className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                onKeyDown={(e) => { if (e.key === 'Enter') handleWipSave(); }}
+              />
+              <button
+                onClick={handleWipSave}
+                className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+              >
+                Set
+              </button>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="px-3 py-2 border-t border-gray-100">
+            <p className="text-xs text-gray-500 mb-1">Description</p>
+            <textarea
+              value={descValue}
+              onChange={(e) => setDescValue(e.target.value)}
+              placeholder="Column description..."
+              rows={2}
+              className="w-full px-2 py-1 border border-gray-300 rounded text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              onClick={handleDescSave}
+              className="mt-1 w-full text-xs text-center py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded"
+            >
+              Save description
+            </button>
+          </div>
+
+          {/* Delete */}
+          <div className="border-t border-gray-100">
+            <button
+              onClick={() => {
+                onClose();
+                onDelete();
+              }}
+              className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Delete column
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function KanbanColumn({
   column,
   cards,
@@ -955,6 +1338,7 @@ function KanbanColumn({
   totalCards,
   onCollapse,
   onDelete,
+  onUpdateColumn,
 }: {
   column: Column;
   cards: Card[];
@@ -965,9 +1349,11 @@ function KanbanColumn({
   totalCards: number;
   onCollapse: () => void;
   onDelete: () => void;
+  onUpdateColumn: (data: { title?: string; color?: string | null; wipLimit?: number | null; description?: string | null }) => void;
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -986,19 +1372,17 @@ function KanbanColumn({
   return (
     <div
       className={`flex flex-col rounded-lg h-full ${isOverWip ? 'bg-red-50 ring-2 ring-red-200' : 'bg-gray-100'}`}
+      style={column.color ? { borderTop: `3px solid ${column.color}` } : {}}
     >
       <div
         {...dragHandleProps}
         className={`px-3 py-2 flex items-center justify-between cursor-grab ${isOverWip ? 'bg-red-100 rounded-t-lg' : ''}`}
       >
         <div className="flex items-center gap-2">
-          {column.color && (
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: column.color }} />
-          )}
           <h3 className="font-medium text-sm text-gray-700">{column.title}</h3>
           <span className="text-xs text-gray-400">{displayCount}</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="relative flex items-center gap-1">
           {column.wipLimit && (
             <span
               className={`text-xs px-1.5 py-0.5 rounded ${isOverWip ? 'bg-red-200 text-red-700 font-semibold' : 'bg-gray-200 text-gray-500'}`}
@@ -1021,27 +1405,23 @@ function KanbanColumn({
               {column.wipLimit}
             </span>
           )}
-          {/* CL-003: Delete column button */}
+          {/* CL-006: Column settings gear icon */}
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onDelete();
+              setSettingsOpen((v) => !v);
             }}
-            className="text-gray-300 hover:text-red-500 transition-colors ml-1"
-            title="Delete column"
+            className="text-gray-300 hover:text-gray-500 transition-colors"
+            title="Column settings"
           >
-            <svg
-              className="w-3.5 h-3.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
               />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </button>
           <button
@@ -1051,6 +1431,16 @@ function KanbanColumn({
           >
             &laquo;
           </button>
+
+          {/* CL-006: Column settings popover */}
+          {settingsOpen && (
+            <ColumnSettingsMenu
+              column={column}
+              onUpdate={onUpdateColumn}
+              onDelete={onDelete}
+              onClose={() => setSettingsOpen(false)}
+            />
+          )}
         </div>
       </div>
 

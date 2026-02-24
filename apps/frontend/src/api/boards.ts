@@ -125,4 +125,33 @@ export const boardsApi = {
 
   deleteCard: (cardId: string) =>
     apiClient.delete(`/cards/${cardId}`).then((r) => r.data),
+
+  // CL-006, CL-009, CL-010: Column settings
+  updateColumn: (
+    columnId: string,
+    data: { title?: string; color?: string | null; wipLimit?: number | null; description?: string | null },
+  ) => apiClient.patch<Column>(`/columns/${columnId}`, data).then((r) => r.data),
+
+  // LB-005, LB-006: Label management
+  getBoardLabels: (boardId: string) =>
+    apiClient.get<Array<{ id: string; name: string; color: string }>>(`/boards/${boardId}/labels`).then((r) => r.data),
+
+  createLabel: (boardId: string, data: { name: string; color: string }) =>
+    apiClient.post<{ id: string; name: string; color: string }>(`/boards/${boardId}/labels`, data).then((r) => r.data),
+
+  updateLabel: (labelId: string, data: { name?: string; color?: string }) =>
+    apiClient.patch<{ id: string; name: string; color: string }>(`/labels/${labelId}`, data).then((r) => r.data),
+
+  addLabelToCard: (cardId: string, labelId: string) =>
+    apiClient.post(`/cards/${cardId}/labels/${labelId}`).then((r) => r.data),
+
+  removeLabelFromCard: (cardId: string, labelId: string) =>
+    apiClient.delete(`/cards/${cardId}/labels/${labelId}`).then((r) => r.data),
+
+  // BD-005, BD-006: Board favorites
+  toggleFavorite: (boardId: string) =>
+    apiClient.post(`/boards/${boardId}/favorite`).then((r) => r.data),
+
+  getFavorites: () =>
+    apiClient.get<Board[]>('/boards/favorites').then((r) => r.data),
 };

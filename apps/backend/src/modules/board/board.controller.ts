@@ -84,6 +84,16 @@ export class BoardController {
     return this.boardService.findArchivedByWorkspaceId(workspaceId);
   }
 
+  // ── Favorites endpoints ──
+
+  @Get('boards/favorites')
+  @ApiOperation({ summary: 'List user\'s favorite boards' })
+  @ApiResponse({ status: 200, description: 'List of favorited boards' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async findFavorites(@CurrentUser() user: { id: string }) {
+    return this.boardService.findFavorites(user.id);
+  }
+
   // ── Board-scoped endpoints ──
 
   @Get('boards/:id')
@@ -99,6 +109,22 @@ export class BoardController {
   ) {
     await this.requireBoardMembership(id, user.id);
     return this.boardService.findById(id);
+  }
+
+  @Post('boards/:id/favorite')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Toggle board favorite status' })
+  @ApiParam({ name: 'id', description: 'Board ID' })
+  @ApiResponse({ status: 200, description: 'Favorite toggled', schema: { example: { favorited: true } } })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Not a board member' })
+  @ApiResponse({ status: 404, description: 'Board not found' })
+  async toggleFavorite(
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+  ) {
+    await this.requireBoardMembership(id, user.id);
+    return this.boardService.toggleFavorite(id, user.id);
   }
 
   @Patch('boards/:id')

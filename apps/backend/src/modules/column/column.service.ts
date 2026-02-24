@@ -34,6 +34,7 @@ export class ColumnService {
       data: {
         boardId,
         title: dto.title,
+        description: dto.description,
         columnType: dto.columnType ?? ColumnType.CUSTOM,
         wipLimit: dto.wipLimit,
         color: dto.color,
@@ -81,6 +82,7 @@ export class ColumnService {
       where: { id },
       data: {
         ...(dto.title !== undefined && { title: dto.title }),
+        ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.columnType !== undefined && { columnType: dto.columnType }),
         ...(dto.wipLimit !== undefined && { wipLimit: dto.wipLimit }),
         ...(dto.color !== undefined && { color: dto.color }),

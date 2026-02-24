@@ -79,16 +79,18 @@ model User {
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
 
-  workspaceMembers WorkspaceMember[]
-  boardMembers     BoardMember[]
-  createdBoards    Board[]          @relation("BoardCreator")
-  createdCards     Card[]           @relation("CardCreator")
-  cardAssignees    CardAssignee[]
-  comments         Comment[]
-  attachments      Attachment[]
-  activities       Activity[]
-  automationRules  AutomationRule[]
-  notifications    Notification[]
+  workspaceMembers     WorkspaceMember[]
+  boardMembers         BoardMember[]
+  createdBoards        Board[]              @relation("BoardCreator")
+  createdCards         Card[]               @relation("CardCreator")
+  cardAssignees        CardAssignee[]
+  comments             Comment[]
+  attachments          Attachment[]
+  activities           Activity[]
+  automationRules      AutomationRule[]
+  notifications        Notification[]
+  favorites            BoardFavorite[]
+  notificationSettings NotificationSetting[]
 
   @@map("users")
 }
@@ -143,8 +145,22 @@ model Board {
   labels          Label[]
   activities      Activity[]
   automationRules AutomationRule[]
+  favorites       BoardFavorite[]
 
   @@map("boards")
+}
+
+model BoardFavorite {
+  id        String   @id @default(uuid())
+  boardId   String   @map("board_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, userId])
+  @@map("board_favorites")
 }
 
 model BoardMember {
@@ -165,6 +181,7 @@ model Column {
   id         String     @id @default(uuid())
   boardId    String     @map("board_id")
   title      String
+  description String?
   columnType ColumnType @default(CUSTOM) @map("column_type")
   position   Float      @default(0)
   wipLimit   Int?       @map("wip_limit")
@@ -404,4 +421,16 @@ model Notification {
   @@index([userId, isRead])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+model NotificationSetting {
+  id      String           @id @default(uuid())
+  userId  String           @map("user_id")
+  type    NotificationType
+  enabled Boolean          @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@map("notification_settings")
 }

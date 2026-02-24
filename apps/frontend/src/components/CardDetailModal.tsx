@@ -8,6 +8,11 @@ import { commentsApi } from '@/api/comments';
 import { boardsApi } from '@/api/boards';
 import { useAuthStore } from '@/stores/auth';
 
+const LABEL_PRESET_COLORS = [
+  '#ef4444', '#f97316', '#eab308', '#22c55e',
+  '#3b82f6', '#a855f7', '#ec4899', '#6b7280',
+];
+
 interface CardDetail {
   id: string;
   boardId: string;
@@ -150,6 +155,22 @@ export default function CardDetailModal({
     },
   });
 
+  const addLabelToCardMutation = useMutation({
+    mutationFn: (labelId: string) => boardsApi.addLabelToCard(cardId, labelId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['card', cardId] });
+      queryClient.invalidateQueries({ queryKey: ['cards', card?.boardId] });
+    },
+  });
+
+  const removeLabelFromCardMutation = useMutation({
+    mutationFn: (labelId: string) => boardsApi.removeLabelFromCard(cardId, labelId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['card', cardId] });
+      queryClient.invalidateQueries({ queryKey: ['cards', card?.boardId] });
+    },
+  });
+
   const copyCardMutation = useMutation({
     mutationFn: () => boardsApi.copyCard(cardId),
     onSuccess: () => {
@@ -227,20 +248,14 @@ export default function CardDetailModal({
         <div className="px-6 pb-6 grid grid-cols-3 gap-6">
           {/* Main content - left 2/3 */}
           <div className="col-span-2 space-y-5">
-            {/* Labels */}
-            {card.labels.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {card.labels.map((cl) => (
-                  <span
-                    key={cl.label.id}
-                    className="text-xs px-2 py-0.5 rounded text-white font-medium"
-                    style={{ backgroundColor: cl.label.color }}
-                  >
-                    {cl.label.name}
-                  </span>
-                ))}
-              </div>
-            )}
+            {/* LB-005, LB-006: Labels with editing */}
+            <LabelsSection
+              cardId={cardId}
+              boardId={card.boardId}
+              cardLabels={card.labels}
+              onAddLabel={(labelId) => addLabelToCardMutation.mutate(labelId)}
+              onRemoveLabel={(labelId) => removeLabelFromCardMutation.mutate(labelId)}
+            />
 
             {/* Description */}
             <EditableDescription
@@ -495,6 +510,256 @@ export default function CardDetailModal({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// LB-005, LB-006: Labels section with create/edit
+// ---------------------------------------------------------------------------
+
+function LabelsSection({
+  cardId,
+  boardId,
+  cardLabels,
+  onAddLabel,
+  onRemoveLabel,
+}: {
+  cardId: string;
+  boardId: string;
+  cardLabels: Array<{ label: { id: string; name: string; color: string } }>;
+  onAddLabel: (labelId: string) => void;
+  onRemoveLabel: (labelId: string) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [showPicker, setShowPicker] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newLabelName, setNewLabelName] = useState('');
+  const [newLabelColor, setNewLabelColor] = useState(LABEL_PRESET_COLORS[0]);
+  const [editingLabel, setEditingLabel] = useState<{ id: string; name: string; color: string } | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  const { data: boardLabels = [] } = useQuery<Array<{ id: string; name: string; color: string }>>({
+    queryKey: ['board-labels', boardId],
+    queryFn: () => boardsApi.getBoardLabels(boardId),
+    enabled: showPicker,
+  });
+
+  const createLabelMutation = useMutation({
+    mutationFn: (data: { name: string; color: string }) => boardsApi.createLabel(boardId, data),
+    onSuccess: (newLabel) => {
+      queryClient.invalidateQueries({ queryKey: ['board-labels', boardId] });
+      onAddLabel(newLabel.id);
+      setShowCreate(false);
+      setNewLabelName('');
+      setNewLabelColor(LABEL_PRESET_COLORS[0]);
+    },
+  });
+
+  const updateLabelMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { name?: string; color?: string } }) =>
+      boardsApi.updateLabel(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['board-labels', boardId] });
+      queryClient.invalidateQueries({ queryKey: ['card', cardId] });
+      setEditingLabel(null);
+    },
+  });
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowPicker(false);
+        setShowCreate(false);
+        setEditingLabel(null);
+      }
+    }
+    if (showPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showPicker]);
+
+  const cardLabelIds = new Set(cardLabels.map((cl) => cl.label.id));
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-1.5">
+        <h4 className="text-sm font-medium text-gray-700">Labels</h4>
+        <button
+          onClick={() => setShowPicker((v) => !v)}
+          className="text-xs text-blue-600 hover:text-blue-800"
+        >
+          {showPicker ? 'Close' : '+ Add'}
+        </button>
+      </div>
+
+      {/* Current card labels */}
+      {cardLabels.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {cardLabels.map((cl) => (
+            <span
+              key={cl.label.id}
+              className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded text-white font-medium"
+              style={{ backgroundColor: cl.label.color }}
+            >
+              {cl.label.name}
+              <button
+                onClick={() => onRemoveLabel(cl.label.id)}
+                className="hover:opacity-70 leading-none ml-0.5"
+                aria-label={`Remove label ${cl.label.name}`}
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Label picker dropdown */}
+      {showPicker && (
+        <div ref={pickerRef} className="border border-gray-200 rounded-lg shadow-sm bg-white p-3 mb-2">
+          {editingLabel ? (
+            /* Edit label form */
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <button
+                  onClick={() => setEditingLabel(null)}
+                  className="text-gray-400 hover:text-gray-600 text-xs"
+                >
+                  &larr;
+                </button>
+                <span className="text-xs font-medium text-gray-700">Edit label</span>
+              </div>
+              <input
+                type="text"
+                value={editingLabel.name}
+                onChange={(e) => setEditingLabel({ ...editingLabel, name: e.target.value })}
+                placeholder="Label name"
+                className="w-full px-2 py-1 border border-gray-300 rounded text-sm mb-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                autoFocus
+              />
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {LABEL_PRESET_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setEditingLabel({ ...editingLabel, color: c })}
+                    className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110"
+                    style={{
+                      backgroundColor: c,
+                      borderColor: editingLabel.color === c ? '#1d4ed8' : 'transparent',
+                    }}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={() =>
+                  updateLabelMutation.mutate({
+                    id: editingLabel.id,
+                    data: { name: editingLabel.name, color: editingLabel.color },
+                  })
+                }
+                disabled={updateLabelMutation.isPending || !editingLabel.name.trim()}
+                className="w-full py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
+              >
+                {updateLabelMutation.isPending ? 'Saving...' : 'Save changes'}
+              </button>
+            </div>
+          ) : showCreate ? (
+            /* Create label form */
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <button
+                  onClick={() => setShowCreate(false)}
+                  className="text-gray-400 hover:text-gray-600 text-xs"
+                >
+                  &larr;
+                </button>
+                <span className="text-xs font-medium text-gray-700">Create label</span>
+              </div>
+              <input
+                type="text"
+                value={newLabelName}
+                onChange={(e) => setNewLabelName(e.target.value)}
+                placeholder="Label name"
+                className="w-full px-2 py-1 border border-gray-300 rounded text-sm mb-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                autoFocus
+              />
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {LABEL_PRESET_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setNewLabelColor(c)}
+                    className="w-6 h-6 rounded-full border-2 transition-transform hover:scale-110"
+                    style={{
+                      backgroundColor: c,
+                      borderColor: newLabelColor === c ? '#1d4ed8' : 'transparent',
+                    }}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={() =>
+                  createLabelMutation.mutate({ name: newLabelName.trim(), color: newLabelColor })
+                }
+                disabled={createLabelMutation.isPending || !newLabelName.trim()}
+                className="w-full py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
+              >
+                {createLabelMutation.isPending ? 'Creating...' : 'Create label'}
+              </button>
+            </div>
+          ) : (
+            /* Label list */
+            <div>
+              <div className="space-y-1 max-h-40 overflow-y-auto mb-2">
+                {boardLabels.map((label) => {
+                  const isOnCard = cardLabelIds.has(label.id);
+                  return (
+                    <div key={label.id} className="flex items-center justify-between group">
+                      <button
+                        onClick={() =>
+                          isOnCard ? onRemoveLabel(label.id) : onAddLabel(label.id)
+                        }
+                        className="flex items-center gap-2 flex-1 min-w-0 text-left py-1 px-1 rounded hover:bg-gray-50"
+                      >
+                        <span
+                          className="inline-block text-xs px-2 py-0.5 rounded text-white font-medium truncate"
+                          style={{ backgroundColor: label.color }}
+                        >
+                          {label.name}
+                        </span>
+                        {isOnCard && (
+                          <svg className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setEditingLabel(label)}
+                        className="text-gray-300 hover:text-gray-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Edit label"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                })}
+                {boardLabels.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-2">No labels yet.</p>
+                )}
+              </div>
+              <button
+                onClick={() => setShowCreate(true)}
+                className="w-full text-xs text-center py-1.5 border border-dashed border-gray-300 rounded text-gray-500 hover:border-gray-400 hover:text-gray-700"
+              >
+                + Create new label
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

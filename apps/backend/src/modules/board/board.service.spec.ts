@@ -59,6 +59,12 @@ describe('BoardService', () => {
         update: jest.fn(),
         delete: jest.fn(),
       },
+      boardFavorite: {
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        create: jest.fn(),
+        delete: jest.fn(),
+      },
       user: {
         findUnique: jest.fn(),
       },
@@ -442,6 +448,85 @@ describe('BoardService', () => {
           where: { workspaceId: 'ws-1', archivedAt: { not: null } },
         }),
       );
+    });
+  });
+
+  describe('toggleFavorite', () => {
+    it('should add board to favorites when not yet favorited', async () => {
+      prisma.board.findUnique.mockResolvedValue(mockBoard);
+      prisma.boardFavorite.findUnique.mockResolvedValue(null);
+      prisma.boardFavorite.create.mockResolvedValue({
+        id: 'fav-1',
+        boardId: 'board-1',
+        userId: 'user-1',
+        createdAt: new Date(),
+      });
+
+      const result = await service.toggleFavorite('board-1', 'user-1');
+
+      expect(result).toEqual({ favorited: true });
+      expect(prisma.boardFavorite.create).toHaveBeenCalledWith({
+        data: { boardId: 'board-1', userId: 'user-1' },
+      });
+    });
+
+    it('should remove board from favorites when already favorited', async () => {
+      const existingFavorite = {
+        id: 'fav-1',
+        boardId: 'board-1',
+        userId: 'user-1',
+        createdAt: new Date(),
+      };
+      prisma.board.findUnique.mockResolvedValue(mockBoard);
+      prisma.boardFavorite.findUnique.mockResolvedValue(existingFavorite);
+      prisma.boardFavorite.delete.mockResolvedValue(existingFavorite);
+
+      const result = await service.toggleFavorite('board-1', 'user-1');
+
+      expect(result).toEqual({ favorited: false });
+      expect(prisma.boardFavorite.delete).toHaveBeenCalledWith({
+        where: { id: 'fav-1' },
+      });
+    });
+
+    it('should throw NotFoundException for non-existent board', async () => {
+      prisma.board.findUnique.mockResolvedValue(null);
+
+      await expect(service.toggleFavorite('non-existent', 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('findFavorites', () => {
+    it('should return favorited boards for a user', async () => {
+      const boardWithDetails = {
+        ...mockBoard,
+        createdBy: { id: 'user-1', name: 'Test', avatarUrl: null },
+        _count: { members: 2, cards: 5 },
+      };
+      prisma.boardFavorite.findMany.mockResolvedValue([
+        { id: 'fav-1', boardId: 'board-1', userId: 'user-1', createdAt: new Date(), board: boardWithDetails },
+      ]);
+
+      const result = await service.findFavorites('user-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('board-1');
+      expect(prisma.boardFavorite.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { userId: 'user-1' },
+          orderBy: { createdAt: 'desc' },
+        }),
+      );
+    });
+
+    it('should return empty array when user has no favorites', async () => {
+      prisma.boardFavorite.findMany.mockResolvedValue([]);
+
+      const result = await service.findFavorites('user-1');
+
+      expect(result).toEqual([]);
     });
   });
 });
