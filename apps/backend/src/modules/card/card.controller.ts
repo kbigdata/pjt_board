@@ -26,6 +26,7 @@ import { UpdateCardDto } from './dto/update-card.dto';
 import { MoveCardDto } from './dto/move-card.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { BoardGateway } from '../board/board.gateway';
 
 @ApiTags('Cards')
 @ApiBearerAuth()
@@ -35,6 +36,7 @@ export class CardController {
   constructor(
     private readonly cardService: CardService,
     private readonly boardService: BoardService,
+    private readonly boardGateway: BoardGateway,
   ) {}
 
   @Post('boards/:boardId/cards')
@@ -50,7 +52,9 @@ export class CardController {
     @Body() dto: CreateCardDto,
   ) {
     await this.requireBoardRole(boardId, user.id, [Role.OWNER, Role.ADMIN, Role.MEMBER]);
-    return this.cardService.createForUser(boardId, user.id, dto);
+    const card = await this.cardService.createForUser(boardId, user.id, dto);
+    this.boardGateway.emitCardCreated(boardId, user.id, card as unknown as Record<string, unknown>);
+    return card;
   }
 
   @Get('boards/:boardId/cards')
@@ -95,7 +99,10 @@ export class CardController {
     @Body() dto: UpdateCardDto,
   ) {
     await this.requireCardBoardRole(id, user.id, [Role.OWNER, Role.ADMIN, Role.MEMBER]);
-    return this.cardService.update(id, dto);
+    const card = await this.cardService.update(id, dto);
+    const boardId = await this.cardService.getBoardId(id);
+    if (boardId) this.boardGateway.emitCardUpdated(boardId, user.id, card as unknown as Record<string, unknown>);
+    return card;
   }
 
   @Patch('cards/:id/move')
@@ -111,7 +118,11 @@ export class CardController {
     @Body() dto: MoveCardDto,
   ) {
     await this.requireCardBoardRole(id, user.id, [Role.OWNER, Role.ADMIN, Role.MEMBER]);
-    return this.cardService.move(id, dto);
+    const existing = await this.cardService.findById(id);
+    const card = await this.cardService.move(id, dto);
+    const boardId = await this.cardService.getBoardId(id);
+    if (boardId) this.boardGateway.emitCardMoved(boardId, user.id, card as unknown as Record<string, unknown>, existing.columnId);
+    return card;
   }
 
   @Post('cards/:id/archive')
@@ -126,8 +137,11 @@ export class CardController {
     @CurrentUser() user: { id: string },
     @Param('id') id: string,
   ) {
+    const boardId = await this.cardService.getBoardId(id);
     await this.requireCardBoardRole(id, user.id, [Role.OWNER, Role.ADMIN, Role.MEMBER]);
-    return this.cardService.archive(id);
+    const card = await this.cardService.archive(id);
+    if (boardId) this.boardGateway.emitCardArchived(boardId, user.id, id);
+    return card;
   }
 
   @Post('cards/:id/restore')

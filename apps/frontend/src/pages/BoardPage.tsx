@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DragDropContext, Droppable, Draggable, type DropResult, type DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
 import { boardsApi, type Card, type Column } from '@/api/boards';
 import CardDetailModal from '@/components/CardDetailModal';
+import ActivityFeed from '@/components/ActivityFeed';
+import { useBoardSocket } from '@/hooks/useSocket';
 
 const PRIORITY_COLORS: Record<string, string> = {
   CRITICAL: 'bg-red-500',
@@ -31,6 +33,11 @@ export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const queryClient = useQueryClient();
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+
+  // Real-time sync
+  useBoardSocket(boardId);
+
+  const [activityOpen, setActivityOpen] = useState(false);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -195,6 +202,12 @@ export default function BoardPage() {
           </Link>
           <h2 className="text-lg font-semibold text-gray-900">{board?.title}</h2>
         </div>
+        <button
+          onClick={() => setActivityOpen((v) => !v)}
+          className={`text-sm px-3 py-1 rounded ${activityOpen ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
+        >
+          Activity
+        </button>
       </div>
 
       {/* Search & Filter bar */}
@@ -293,6 +306,14 @@ export default function BoardPage() {
         <CardDetailModal
           cardId={selectedCardId}
           onClose={() => setSelectedCardId(null)}
+        />
+      )}
+
+      {boardId && (
+        <ActivityFeed
+          boardId={boardId}
+          isOpen={activityOpen}
+          onClose={() => setActivityOpen(false)}
         />
       )}
     </div>
