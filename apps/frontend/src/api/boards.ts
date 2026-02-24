@@ -88,7 +88,7 @@ export const boardsApi = {
   createCard: (boardId: string, data: { title: string; columnId: string; priority?: string }) =>
     apiClient.post<Card>(`/boards/${boardId}/cards`, data).then((r) => r.data),
 
-  moveCard: (cardId: string, data: { columnId: string; position: number; swimlaneId?: string }) =>
+  moveCard: (cardId: string, data: { columnId: string; position: number; swimlaneId?: string | null }) =>
     apiClient.patch(`/cards/${cardId}/move`, data).then((r) => r.data),
 
   updateCard: (cardId: string, data: Partial<{ title: string; description: string; priority: string }>) =>

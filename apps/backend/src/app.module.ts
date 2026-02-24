@@ -13,6 +13,9 @@ import { LabelModule } from './modules/label/label.module';
 import { ChecklistModule } from './modules/checklist/checklist.module';
 import { ActivityModule } from './modules/activity/activity.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { MinioModule } from './common/minio/minio.module';
+import { AttachmentModule } from './modules/attachment/attachment.module';
+import { SwimlaneModule } from './modules/swimlane/swimlane.module';
 
 @Module({
   imports: [
@@ -21,6 +24,7 @@ import { NotificationModule } from './modules/notification/notification.module';
     }),
     ScheduleModule.forRoot(),
     PrismaModule,
+    MinioModule,
     AuthModule,
     UserModule,
     WorkspaceModule,
@@ -32,6 +36,8 @@ import { NotificationModule } from './modules/notification/notification.module';
     ChecklistModule,
     ActivityModule,
     NotificationModule,
+    AttachmentModule,
+    SwimlaneModule,
   ],
 })
 export class AppModule {}

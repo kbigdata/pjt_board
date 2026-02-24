@@ -100,6 +100,10 @@ export function useBoardSocket(boardId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ['columns', boardId] });
     };
 
+    const invalidateSwimlanes = () => {
+      queryClient.invalidateQueries({ queryKey: ['swimlanes', boardId] });
+    };
+
     socket.on('cardCreated', invalidateCards);
     socket.on('cardUpdated', invalidateCards);
     socket.on('cardMoved', invalidateCards);
@@ -107,6 +111,11 @@ export function useBoardSocket(boardId: string | undefined) {
     socket.on('columnCreated', invalidateColumns);
     socket.on('columnUpdated', invalidateColumns);
     socket.on('columnMoved', invalidateColumns);
+    socket.on('swimlaneCreated', invalidateSwimlanes);
+    socket.on('swimlaneUpdated', invalidateSwimlanes);
+    socket.on('swimlaneMoved', invalidateSwimlanes);
+    socket.on('attachmentAdded', invalidateCards);
+    socket.on('attachmentRemoved', invalidateCards);
 
     return () => {
       socket.emit('leaveBoard', { boardId });
@@ -118,6 +127,11 @@ export function useBoardSocket(boardId: string | undefined) {
       socket.off('columnCreated', invalidateColumns);
       socket.off('columnUpdated', invalidateColumns);
       socket.off('columnMoved', invalidateColumns);
+      socket.off('swimlaneCreated', invalidateSwimlanes);
+      socket.off('swimlaneUpdated', invalidateSwimlanes);
+      socket.off('swimlaneMoved', invalidateSwimlanes);
+      socket.off('attachmentAdded', invalidateCards);
+      socket.off('attachmentRemoved', invalidateCards);
     };
   }, [boardId, socket, queryClient]);
 

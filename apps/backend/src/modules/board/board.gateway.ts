@@ -214,6 +214,26 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`board:${boardId}`).emit('columnMoved', column);
   }
 
+  emitAttachmentAdded(boardId: string, attachment: Record<string, unknown>) {
+    this.server.to(`board:${boardId}`).emit('attachmentAdded', attachment);
+  }
+
+  emitAttachmentRemoved(boardId: string, attachmentId: string) {
+    this.server.to(`board:${boardId}`).emit('attachmentRemoved', { id: attachmentId });
+  }
+
+  emitSwimlaneCreated(boardId: string, swimlane: Record<string, unknown>) {
+    this.server.to(`board:${boardId}`).emit('swimlaneCreated', swimlane);
+  }
+
+  emitSwimlaneUpdated(boardId: string, swimlane: Record<string, unknown>) {
+    this.server.to(`board:${boardId}`).emit('swimlaneUpdated', swimlane);
+  }
+
+  emitSwimlaneMoved(boardId: string, swimlane: Record<string, unknown>) {
+    this.server.to(`board:${boardId}`).emit('swimlaneMoved', swimlane);
+  }
+
   async emitCommentAdded(
     boardId: string,
     userId: string,

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/api/client';
+import { useAttachments } from '@/hooks/useAttachments';
+import { attachmentsApi } from '@/api/attachments';
 
 interface CardDetail {
   id: string;
@@ -34,12 +36,6 @@ interface CardDetail {
 }
 
 const PRIORITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
-const PRIORITY_STYLES: Record<string, string> = {
-  CRITICAL: 'bg-red-100 text-red-700',
-  HIGH: 'bg-orange-100 text-orange-700',
-  MEDIUM: 'bg-blue-100 text-blue-700',
-  LOW: 'bg-gray-100 text-gray-600',
-};
 
 export default function CardDetailModal({
   cardId,
@@ -201,6 +197,9 @@ export default function CardDetailModal({
               </div>
             ))}
 
+            {/* Attachments */}
+            <AttachmentSection cardId={card.id} />
+
             {/* Comments */}
             <div>
               <h4 className="text-sm font-medium text-gray-700 mb-3">Comments</h4>
@@ -292,6 +291,114 @@ export default function CardDetailModal({
   );
 }
 
+function AttachmentSection({ cardId }: { cardId: string }) {
+  const { attachments, upload, isUploading, deleteAttachment } = useAttachments(cardId);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files) return;
+    Array.from(files).forEach((file) => upload(file));
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    handleFiles(e.dataTransfer.files);
+  };
+
+  const handleDownload = async (id: string) => {
+    const { url } = await attachmentsApi.getDownloadUrl(id);
+    window.open(url, '_blank');
+  };
+
+  const isImage = (mimeType: string) => mimeType.startsWith('image/');
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <div>
+      <h4 className="text-sm font-medium text-gray-700 mb-2">Attachments</h4>
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+        className={`border-2 border-dashed rounded-lg p-3 mb-3 text-center cursor-pointer transition-colors ${
+          dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+        }`}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          multiple
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+        <p className="text-sm text-gray-500">
+          {isUploading ? 'Uploading...' : 'Drop files here or click to upload'}
+        </p>
+      </div>
+      {attachments.length > 0 && (
+        <div className="space-y-2">
+          {attachments.map((att) => (
+            <div key={att.id} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+              {isImage(att.mimeType) ? (
+                <div className="w-10 h-10 bg-gray-200 rounded overflow-hidden flex-shrink-0">
+                  <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                    IMG
+                  </div>
+                </div>
+              ) : (
+                <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="w-5 h-5 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-700 truncate">{att.fileName}</p>
+                <p className="text-xs text-gray-400">{formatSize(att.fileSize)}</p>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleDownload(att.id)}
+                  className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1"
+                >
+                  Download
+                </button>
+                <button
+                  onClick={() => deleteAttachment(att.id)}
+                  className="text-xs text-red-500 hover:text-red-700 px-2 py-1"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EditableTitle({
   value,
   onSave,
@@ -319,7 +426,10 @@ function EditableTitle({
         onBlur={handleSave}
         onKeyDown={(e) => {
           if (e.key === 'Enter') handleSave();
-          if (e.key === 'Escape') { setText(value); setEditing(false); }
+          if (e.key === 'Escape') {
+            setText(value);
+            setEditing(false);
+          }
         }}
         className="text-lg font-semibold text-gray-900 w-full border-b-2 border-blue-500 focus:outline-none bg-transparent"
         autoFocus
@@ -374,7 +484,10 @@ function EditableDescription({
               Save
             </button>
             <button
-              onClick={() => { setText(value ?? ''); setEditing(false); }}
+              onClick={() => {
+                setText(value ?? '');
+                setEditing(false);
+              }}
               className="px-3 py-1 text-gray-500 hover:text-gray-700 text-sm"
             >
               Cancel
