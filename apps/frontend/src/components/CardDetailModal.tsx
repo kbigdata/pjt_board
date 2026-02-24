@@ -7,6 +7,7 @@ import { cardLinksApi, type CardLink } from '@/api/card-links';
 import { commentsApi } from '@/api/comments';
 import { boardsApi } from '@/api/boards';
 import { useAuthStore } from '@/stores/auth';
+import { customFieldsApi, type CustomFieldDefinition, type CustomFieldValue } from '@/api/custom-fields';
 
 const LABEL_PRESET_COLORS = [
   '#ef4444', '#f97316', '#eab308', '#22c55e',
@@ -269,6 +270,9 @@ export default function CardDetailModal({
               onAdd={(tag) => addTagMutation.mutate(tag)}
               onRemove={(tag) => removeTagMutation.mutate(tag)}
             />
+
+            {/* Custom Fields section */}
+            <CustomFieldsSection cardId={cardId} boardId={card.boardId} />
 
             {/* Links section */}
             <LinksSection
@@ -833,6 +837,372 @@ function TagsSection({
         placeholder="Add tag, press Enter..."
         className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
       />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CF-001: Custom Fields section
+// ---------------------------------------------------------------------------
+
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  TEXT: 'Text',
+  NUMBER: 'Number',
+  DATE: 'Date',
+  DROPDOWN: 'Dropdown',
+  CHECKBOX: 'Checkbox',
+};
+
+function CustomFieldInput({
+  definition,
+  value,
+  onSave,
+  onDelete,
+}: {
+  definition: CustomFieldDefinition;
+  value: CustomFieldValue | undefined;
+  onSave: (val: unknown) => void;
+  onDelete: () => void;
+}) {
+  const currentValue = value?.value;
+
+  if (definition.fieldType === 'CHECKBOX') {
+    return (
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={Boolean(currentValue)}
+          onChange={(e) => onSave(e.target.checked)}
+          className="rounded border-gray-300"
+        />
+        <span className="text-sm text-gray-700">{definition.name}</span>
+        {definition.isRequired && <span className="text-red-400 text-xs">*</span>}
+        <button
+          onClick={onDelete}
+          className="ml-auto text-gray-300 hover:text-red-400 text-xs"
+          title="Clear value"
+        >
+          &times;
+        </button>
+      </label>
+    );
+  }
+
+  if (definition.fieldType === 'DROPDOWN') {
+    const opts = definition.options ?? [];
+    return (
+      <div className="flex items-center gap-2">
+        <label className="text-xs text-gray-500 flex-shrink-0 w-28 truncate" title={definition.name}>
+          {definition.name}
+          {definition.isRequired && <span className="text-red-400"> *</span>}
+        </label>
+        <select
+          value={(currentValue as string) ?? ''}
+          onChange={(e) => onSave(e.target.value || null)}
+          className="flex-1 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">-- Select --</option>
+          {opts.map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+        <button
+          onClick={onDelete}
+          className="text-gray-300 hover:text-red-400 text-xs flex-shrink-0"
+          title="Clear value"
+        >
+          &times;
+        </button>
+      </div>
+    );
+  }
+
+  if (definition.fieldType === 'DATE') {
+    return (
+      <div className="flex items-center gap-2">
+        <label className="text-xs text-gray-500 flex-shrink-0 w-28 truncate" title={definition.name}>
+          {definition.name}
+          {definition.isRequired && <span className="text-red-400"> *</span>}
+        </label>
+        <input
+          type="date"
+          defaultValue={(currentValue as string) ?? ''}
+          onBlur={(e) => onSave(e.target.value || null)}
+          className="flex-1 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        <button
+          onClick={onDelete}
+          className="text-gray-300 hover:text-red-400 text-xs flex-shrink-0"
+          title="Clear value"
+        >
+          &times;
+        </button>
+      </div>
+    );
+  }
+
+  if (definition.fieldType === 'NUMBER') {
+    return (
+      <div className="flex items-center gap-2">
+        <label className="text-xs text-gray-500 flex-shrink-0 w-28 truncate" title={definition.name}>
+          {definition.name}
+          {definition.isRequired && <span className="text-red-400"> *</span>}
+        </label>
+        <input
+          type="number"
+          defaultValue={(currentValue as number) ?? ''}
+          onBlur={(e) => onSave(e.target.value !== '' ? Number(e.target.value) : null)}
+          className="flex-1 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          placeholder="Enter number..."
+        />
+        <button
+          onClick={onDelete}
+          className="text-gray-300 hover:text-red-400 text-xs flex-shrink-0"
+          title="Clear value"
+        >
+          &times;
+        </button>
+      </div>
+    );
+  }
+
+  // Default: TEXT
+  return (
+    <div className="flex items-center gap-2">
+      <label className="text-xs text-gray-500 flex-shrink-0 w-28 truncate" title={definition.name}>
+        {definition.name}
+        {definition.isRequired && <span className="text-red-400"> *</span>}
+      </label>
+      <input
+        type="text"
+        defaultValue={(currentValue as string) ?? ''}
+        onBlur={(e) => onSave(e.target.value.trim() || null)}
+        className="flex-1 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        placeholder="Enter text..."
+      />
+      <button
+        onClick={onDelete}
+        className="text-gray-300 hover:text-red-400 text-xs flex-shrink-0"
+        title="Clear value"
+      >
+        &times;
+      </button>
+    </div>
+  );
+}
+
+function CustomFieldManager({
+  boardId,
+  onClose,
+}: {
+  boardId: string;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newType, setNewType] = useState<string>('TEXT');
+  const [newOptions, setNewOptions] = useState('');
+  const [newRequired, setNewRequired] = useState(false);
+
+  const { data: defs = [] } = useQuery<CustomFieldDefinition[]>({
+    queryKey: ['custom-field-defs', boardId],
+    queryFn: () => customFieldsApi.getDefinitions(boardId),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: { name: string; fieldType: string; options?: string[]; isRequired?: boolean }) =>
+      customFieldsApi.createDefinition(boardId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['custom-field-defs', boardId] });
+      setShowCreate(false);
+      setNewName('');
+      setNewType('TEXT');
+      setNewOptions('');
+      setNewRequired(false);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => customFieldsApi.deleteDefinition(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['custom-field-defs', boardId] });
+    },
+  });
+
+  const handleCreate = () => {
+    if (!newName.trim()) return;
+    const options =
+      (newType === 'DROPDOWN' && newOptions.trim())
+        ? newOptions.split(',').map((o) => o.trim()).filter(Boolean)
+        : undefined;
+    createMutation.mutate({ name: newName.trim(), fieldType: newType, options, isRequired: newRequired });
+  };
+
+  return (
+    <div className="border border-gray-200 rounded-lg bg-gray-50 p-3 mt-2">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-medium text-gray-700">Manage Custom Fields</span>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xs">Close</button>
+      </div>
+
+      {/* Existing fields */}
+      <div className="space-y-1 mb-3">
+        {defs.map((def) => (
+          <div key={def.id} className="flex items-center justify-between py-1 px-2 bg-white rounded border border-gray-200">
+            <span className="text-xs text-gray-700 font-medium">{def.name}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">{FIELD_TYPE_LABELS[def.fieldType]}</span>
+              {def.isRequired && <span className="text-xs text-red-400">Required</span>}
+              <button
+                onClick={() => {
+                  if (window.confirm(`Delete field "${def.name}"?`)) {
+                    deleteMutation.mutate(def.id);
+                  }
+                }}
+                className="text-gray-300 hover:text-red-500 text-xs"
+                title="Delete field"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+        {defs.length === 0 && (
+          <p className="text-xs text-gray-400 text-center py-2">No custom fields defined.</p>
+        )}
+      </div>
+
+      {/* Create new field */}
+      {showCreate ? (
+        <div className="space-y-2 pt-2 border-t border-gray-200">
+          <input
+            type="text"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Field name"
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            autoFocus
+          />
+          <select
+            value={newType}
+            onChange={(e) => setNewType(e.target.value)}
+            className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            {Object.entries(FIELD_TYPE_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+          {newType === 'DROPDOWN' && (
+            <input
+              type="text"
+              value={newOptions}
+              onChange={(e) => setNewOptions(e.target.value)}
+              placeholder="Options (comma separated)"
+              className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          )}
+          <label className="flex items-center gap-2 text-xs text-gray-600">
+            <input
+              type="checkbox"
+              checked={newRequired}
+              onChange={(e) => setNewRequired(e.target.checked)}
+              className="rounded border-gray-300"
+            />
+            Required field
+          </label>
+          <div className="flex gap-2">
+            <button
+              onClick={handleCreate}
+              disabled={createMutation.isPending || !newName.trim()}
+              className="flex-1 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
+            >
+              {createMutation.isPending ? 'Creating...' : 'Create Field'}
+            </button>
+            <button
+              onClick={() => setShowCreate(false)}
+              className="py-1 px-3 text-gray-500 hover:text-gray-700 rounded text-xs border border-gray-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowCreate(true)}
+          className="w-full text-xs text-center py-1.5 border border-dashed border-gray-300 rounded text-gray-500 hover:border-gray-400 hover:text-gray-700"
+        >
+          + Add Field
+        </button>
+      )}
+    </div>
+  );
+}
+
+function CustomFieldsSection({ cardId, boardId }: { cardId: string; boardId: string }) {
+  const queryClient = useQueryClient();
+  const [showManager, setShowManager] = useState(false);
+
+  const { data: defs = [] } = useQuery<CustomFieldDefinition[]>({
+    queryKey: ['custom-field-defs', boardId],
+    queryFn: () => customFieldsApi.getDefinitions(boardId),
+  });
+
+  const { data: values = [] } = useQuery<CustomFieldValue[]>({
+    queryKey: ['custom-field-values', cardId],
+    queryFn: () => customFieldsApi.getValues(cardId),
+  });
+
+  const setValueMutation = useMutation({
+    mutationFn: ({ fieldId, value }: { fieldId: string; value: unknown }) =>
+      customFieldsApi.setValue(cardId, fieldId, value),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['custom-field-values', cardId] });
+    },
+  });
+
+  const deleteValueMutation = useMutation({
+    mutationFn: (fieldId: string) => customFieldsApi.deleteValue(cardId, fieldId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['custom-field-values', cardId] });
+    },
+  });
+
+  const valueMap = new Map(values.map((v) => [v.fieldId, v]));
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <h4 className="text-sm font-medium text-gray-700">Custom Fields</h4>
+        <button
+          onClick={() => setShowManager((v) => !v)}
+          className="text-xs text-blue-600 hover:text-blue-800"
+        >
+          {showManager ? 'Done' : 'Manage Fields'}
+        </button>
+      </div>
+
+      {showManager && (
+        <CustomFieldManager boardId={boardId} onClose={() => setShowManager(false)} />
+      )}
+
+      {defs.length === 0 && !showManager && (
+        <p className="text-xs text-gray-400">No custom fields. Click "Manage Fields" to add some.</p>
+      )}
+
+      {defs.length > 0 && (
+        <div className="space-y-2">
+          {defs.map((def) => (
+            <CustomFieldInput
+              key={def.id}
+              definition={def}
+              value={valueMap.get(def.id)}
+              onSave={(val) => setValueMutation.mutate({ fieldId: def.id, value: val })}
+              onDelete={() => deleteValueMutation.mutate(def.id)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

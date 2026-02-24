@@ -147,6 +147,7 @@ model Board {
   activities      Activity[]
   automationRules AutomationRule[]
   favorites       BoardFavorite[]
+  customFields    CustomFieldDefinition[]
 
   @@map("boards")
 }
@@ -247,7 +248,8 @@ model Card {
   tags       CardTag[]
   sourceLinks CardLink[] @relation("SourceCard")
   targetLinks CardLink[] @relation("TargetCard")
-  activities Activity[]
+  activities        Activity[]
+  customFieldValues CustomFieldValue[]
 
   @@map("cards")
 }
@@ -448,4 +450,42 @@ model BoardTemplate {
   createdBy User @relation(fields: [createdById], references: [id])
 
   @@map("board_templates")
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  DROPDOWN
+  CHECKBOX
+}
+
+model CustomFieldDefinition {
+  id         String          @id @default(uuid())
+  boardId    String          @map("board_id")
+  name       String
+  fieldType  CustomFieldType @map("field_type")
+  options    Json?           // For DROPDOWN: ["Option A", "Option B", ...]
+  position   Float           @default(0)
+  isRequired Boolean         @default(false) @map("is_required")
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+
+  board  Board              @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  values CustomFieldValue[]
+
+  @@map("custom_field_definitions")
+}
+
+model CustomFieldValue {
+  id      String @id @default(uuid())
+  cardId  String @map("card_id")
+  fieldId String @map("field_id")
+  value   Json   // Stores the value: string, number, date string, selected option, or boolean
+
+  card  Card                  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  field CustomFieldDefinition @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, fieldId])
+  @@map("custom_field_values")
 }

@@ -158,6 +158,7 @@ export class CardService {
         },
         attachments: { orderBy: { createdAt: 'desc' } },
         tags: true,
+        customFieldValues: { include: { field: true } },
       },
     });
 

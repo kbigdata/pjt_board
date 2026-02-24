@@ -20,6 +20,7 @@ import { CardLinkModule } from './modules/card-link/card-link.module';
 import { CardTagModule } from './modules/card-tag/card-tag.module';
 import { AutomationModule } from './modules/automation/automation.module';
 import { TemplateModule } from './modules/template/template.module';
+import { CustomFieldModule } from './modules/custom-field/custom-field.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { TemplateModule } from './modules/template/template.module';
     CardTagModule,
     AutomationModule,
     TemplateModule,
+    CustomFieldModule,
   ],
 })
 export class AppModule {}

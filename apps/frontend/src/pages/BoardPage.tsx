@@ -16,6 +16,8 @@ import CardDetailModal from '@/components/CardDetailModal';
 import ActivityFeed from '@/components/ActivityFeed';
 import ArchiveDrawer from '@/components/ArchiveDrawer';
 import ListView from '@/components/ListView';
+import CalendarView from '@/components/CalendarView';
+import TimelineView from '@/components/TimelineView';
 import KeyboardShortcutHelp from '@/components/KeyboardShortcutHelp';
 import { useBoardSocket } from '@/hooks/useSocket';
 import { useColumnCollapseStore } from '@/stores/columnCollapse';
@@ -134,8 +136,8 @@ export default function BoardPage() {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filters, setFilters] = useState<FilterState>(getEmptyFilters());
 
-  // VW-002: View mode (board / list)
-  const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
+  // VW-002: View mode (board / list / calendar / timeline)
+  const [viewMode, setViewMode] = useState<'board' | 'list' | 'calendar' | 'timeline'>('board');
 
   // Swimlane state
   const [swimlaneMode, setSwimlaneMode] = useState(false);
@@ -559,6 +561,18 @@ export default function BoardPage() {
             >
               List
             </button>
+            <button
+              onClick={() => setViewMode('calendar')}
+              className={`text-sm px-3 py-1 border-l border-gray-300 ${viewMode === 'calendar' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+              Calendar
+            </button>
+            <button
+              onClick={() => setViewMode('timeline')}
+              className={`text-sm px-3 py-1 border-l border-gray-300 ${viewMode === 'timeline' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+              Timeline
+            </button>
           </div>
 
           <button
@@ -724,6 +738,20 @@ export default function BoardPage() {
 
       {/* Board content */}
       <div ref={boardScrollRef} className="flex-1 overflow-auto p-4">
+        {/* VW-002: Calendar view */}
+        {viewMode === 'calendar' && cards && (
+          <CalendarView
+            cards={filteredCards}
+            onCardClick={(id) => setSelectedCardId(id)}
+          />
+        )}
+        {/* VW-002: Timeline view */}
+        {viewMode === 'timeline' && cards && (
+          <TimelineView
+            cards={filteredCards}
+            onCardClick={(id) => setSelectedCardId(id)}
+          />
+        )}
         {/* VW-002: List view */}
         {viewMode === 'list' ? (
           <ListView
@@ -731,7 +759,7 @@ export default function BoardPage() {
             columns={sortedColumns}
             onCardClick={(cardId) => setSelectedCardId(cardId)}
           />
-        ) : (
+        ) : viewMode === 'board' ? (
         <DragDropContext onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
           {swimlaneMode ? (
             <SwimlaneBoard
@@ -827,7 +855,7 @@ export default function BoardPage() {
             </Droppable>
           )}
         </DragDropContext>
-        )}
+        ) : null}
       </div>
 
       {showHelp && <KeyboardShortcutHelp onClose={() => setShowHelp(false)} />}
