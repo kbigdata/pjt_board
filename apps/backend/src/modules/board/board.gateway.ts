@@ -25,7 +25,7 @@ interface AuthSocket extends Socket {
 })
 export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   private readonly logger = new Logger(BoardGateway.name);
 
