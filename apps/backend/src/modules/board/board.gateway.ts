@@ -15,6 +15,7 @@ import { ActivityService } from '../activity/activity.service';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AutomationService, CardLike, TriggerType } from '../automation/automation.service';
+import { ReportService } from '../report/report.service';
 
 interface AuthSocket extends Socket {
   userId?: string;
@@ -39,6 +40,7 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => AutomationService))
     private readonly automationService: AutomationService,
+    private readonly reportService: ReportService,
   ) {}
 
   async handleConnection(client: AuthSocket) {
@@ -212,6 +214,18 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     await this.triggerAutomation(boardId, 'cardMoved', card as unknown as CardLike);
+
+    // Log card status transition for analytics
+    try {
+      await this.reportService.logCardMove(
+        card.id as string,
+        boardId,
+        fromColumnId,
+        card.columnId as string,
+      );
+    } catch (err) {
+      this.logger.warn(`Failed to log card move for analytics: ${(err as Error).message}`);
+    }
   }
 
   async emitCardArchived(boardId: string, userId: string, cardId: string) {

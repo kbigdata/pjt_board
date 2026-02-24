@@ -8,6 +8,7 @@ import { commentsApi } from '@/api/comments';
 import { boardsApi } from '@/api/boards';
 import { useAuthStore } from '@/stores/auth';
 import { customFieldsApi, type CustomFieldDefinition, type CustomFieldValue } from '@/api/custom-fields';
+import { recurringApi, type RecurringConfig } from '@/api/recurring';
 
 const LABEL_PRESET_COLORS = [
   '#ef4444', '#f97316', '#eab308', '#22c55e',
@@ -505,6 +506,9 @@ export default function CardDetailModal({
                 </button>
               </div>
             </div>
+
+            {/* Recurring */}
+            <RecurringSection cardId={cardId} />
 
             {/* Meta */}
             <div>
@@ -1658,6 +1662,216 @@ function EditableDescription({
           className="text-sm text-gray-600 bg-gray-50 rounded-md px-3 py-2 min-h-[3rem] cursor-pointer hover:bg-gray-100"
         >
           {value || 'Add a description...'}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Recurring section
+// ---------------------------------------------------------------------------
+
+const CRON_PRESETS = [
+  { label: 'Daily', value: '0 9 * * *' },
+  { label: 'Weekly (Mon)', value: '0 9 * * 1' },
+  { label: 'Monthly (1st)', value: '0 9 1 * *' },
+  { label: 'Custom', value: 'custom' },
+];
+
+function RecurringSection({ cardId }: { cardId: string }) {
+  const queryClient = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
+  const [showSetup, setShowSetup] = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState(CRON_PRESETS[0].value);
+  const [customCron, setCustomCron] = useState('');
+  const [nextRunAt, setNextRunAt] = useState('');
+
+  const { data: config, isLoading } = useQuery<RecurringConfig | null>({
+    queryKey: ['recurring', cardId],
+    queryFn: () => recurringApi.get(cardId),
+    enabled: expanded,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: { cronExpression: string; nextRunAt?: string }) =>
+      recurringApi.create(cardId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recurring', cardId] });
+      setShowSetup(false);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: { cronExpression?: string; nextRunAt?: string; enabled?: boolean }) =>
+      recurringApi.update(cardId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recurring', cardId] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => recurringApi.delete(cardId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recurring', cardId] });
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: () => recurringApi.toggle(cardId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recurring', cardId] });
+    },
+  });
+
+  const effectiveCron = selectedPreset === 'custom' ? customCron : selectedPreset;
+
+  const handleCreate = () => {
+    if (!effectiveCron.trim()) return;
+    createMutation.mutate({
+      cronExpression: effectiveCron.trim(),
+      nextRunAt: nextRunAt ? new Date(nextRunAt).toISOString() : undefined,
+    });
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <h4 className="text-xs font-medium text-gray-500 uppercase">Recurring</h4>
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="text-xs text-blue-600 hover:text-blue-800"
+        >
+          {expanded ? 'Hide' : 'Show'}
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="mt-1">
+          {isLoading ? (
+            <p className="text-xs text-gray-400">Loading...</p>
+          ) : config ? (
+            /* Config exists */
+            <div className="space-y-2">
+              <div className="p-2 bg-gray-50 rounded border border-gray-200 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Cron</span>
+                  <code className="text-xs font-mono bg-white px-1.5 py-0.5 rounded border border-gray-200 text-gray-700">
+                    {config.cronExpression}
+                  </code>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Next run</span>
+                  <span className="text-xs text-gray-700">
+                    {new Date(config.nextRunAt).toLocaleString('ko-KR', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Status</span>
+                  <span
+                    className={`text-xs px-1.5 py-0.5 rounded-full ${
+                      config.enabled
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-gray-100 text-gray-500'
+                    }`}
+                  >
+                    {config.enabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </div>
+              </div>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => toggleMutation.mutate()}
+                  disabled={toggleMutation.isPending}
+                  className={`flex-1 text-xs py-1 rounded border transition-colors disabled:opacity-50 ${
+                    config.enabled
+                      ? 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                      : 'border-green-300 text-green-700 hover:bg-green-50'
+                  }`}
+                >
+                  {config.enabled ? 'Disable' : 'Enable'}
+                </button>
+                <button
+                  onClick={() => {
+                    if (window.confirm('Delete recurring config?')) {
+                      deleteMutation.mutate();
+                    }
+                  }}
+                  disabled={deleteMutation.isPending}
+                  className="flex-1 text-xs py-1 rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ) : showSetup ? (
+            /* Setup form */
+            <div className="space-y-2">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Frequency</label>
+                <select
+                  value={selectedPreset}
+                  onChange={(e) => setSelectedPreset(e.target.value)}
+                  className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  {CRON_PRESETS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedPreset === 'custom' && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Cron expression</label>
+                  <input
+                    type="text"
+                    value={customCron}
+                    onChange={(e) => setCustomCron(e.target.value)}
+                    placeholder="e.g. 0 9 * * 1-5"
+                    className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">First run (optional)</label>
+                <input
+                  type="datetime-local"
+                  value={nextRunAt}
+                  onChange={(e) => setNextRunAt(e.target.value)}
+                  className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={handleCreate}
+                  disabled={createMutation.isPending || !effectiveCron.trim()}
+                  className="flex-1 text-xs py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {createMutation.isPending ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setShowSetup(false)}
+                  className="flex-1 text-xs py-1.5 border border-gray-300 text-gray-600 rounded hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* No config, show setup button */
+            <button
+              onClick={() => setShowSetup(true)}
+              className="w-full text-xs py-1.5 border border-dashed border-gray-300 text-gray-500 rounded hover:border-gray-400 hover:text-gray-700"
+            >
+              + Set up recurring
+            </button>
+          )}
         </div>
       )}
     </div>

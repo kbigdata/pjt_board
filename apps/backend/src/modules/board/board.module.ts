@@ -10,6 +10,8 @@ import { WorkspaceModule } from '../workspace/workspace.module';
 import { ActivityModule } from '../activity/activity.module';
 import { NotificationModule } from '../notification/notification.module';
 import { AutomationModule } from '../automation/automation.module';
+import { RecurringModule } from '../recurring/recurring.module';
+import { ReportModule } from '../report/report.module';
 
 @Module({
   imports: [
@@ -17,6 +19,8 @@ import { AutomationModule } from '../automation/automation.module';
     ActivityModule,
     NotificationModule,
     forwardRef(() => AutomationModule),
+    RecurringModule,
+    ReportModule,
     ScheduleModule.forRoot(),
     JwtModule.registerAsync({
       inject: [ConfigService],

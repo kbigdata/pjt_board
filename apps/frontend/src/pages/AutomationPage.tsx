@@ -6,6 +6,7 @@ import {
   type AutomationRule,
   type AutomationCondition,
   type AutomationAction,
+  type AutomationLog,
 } from '@/api/automation';
 
 const TRIGGER_TYPES = [
@@ -57,6 +58,7 @@ export default function AutomationPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
   const [form, setForm] = useState<RuleFormState>(getEmptyForm());
+  const [logsRuleId, setLogsRuleId] = useState<string | null>(null);
 
   const { data: rules = [], isLoading } = useQuery({
     queryKey: ['automations', boardId],
@@ -171,6 +173,12 @@ export default function AutomationPage() {
       actions: f.actions.map((a, i) => (i === index ? { type } : a)),
     }));
   };
+
+  const { data: logs = [], isLoading: logsLoading } = useQuery({
+    queryKey: ['automation-logs', logsRuleId],
+    queryFn: () => automationApi.getLogs(logsRuleId!),
+    enabled: !!logsRuleId,
+  });
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
@@ -369,59 +377,129 @@ export default function AutomationPage() {
       ) : (
         <div className="space-y-3">
           {rules.map((rule) => (
-            <div
-              key={rule.id}
-              className="bg-white rounded-lg shadow-sm border p-4 flex items-center justify-between gap-4"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-medium text-gray-900 truncate">{rule.name}</h4>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${
-                      rule.isEnabled
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-500'
+            <div key={rule.id}>
+              <div className="bg-white rounded-lg shadow-sm border p-4 flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium text-gray-900 truncate">{rule.name}</h4>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${
+                        rule.isEnabled
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}
+                    >
+                      {rule.isEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Trigger: {TRIGGER_TYPES.find((t) => t.value === rule.trigger.type)?.label ?? rule.trigger.type}
+                    {rule.conditions.length > 0 && ` | ${rule.conditions.length} condition(s)`}
+                    {rule.actions.length > 0 && ` | ${rule.actions.length} action(s)`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => setLogsRuleId(logsRuleId === rule.id ? null : rule.id)}
+                    className={`text-xs px-3 py-1.5 rounded border transition-colors ${
+                      logsRuleId === rule.id
+                        ? 'border-blue-400 text-blue-700 bg-blue-50'
+                        : 'border-gray-300 text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    {rule.isEnabled ? 'Enabled' : 'Disabled'}
-                  </span>
+                    Logs
+                  </button>
+                  <button
+                    onClick={() => toggleMutation.mutate(rule.id)}
+                    disabled={toggleMutation.isPending}
+                    className={`text-xs px-3 py-1.5 rounded border transition-colors disabled:opacity-50 ${
+                      rule.isEnabled
+                        ? 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                        : 'border-green-300 text-green-700 hover:bg-green-50'
+                    }`}
+                  >
+                    {rule.isEnabled ? 'Disable' : 'Enable'}
+                  </button>
+                  <button
+                    onClick={() => handleOpenEdit(rule)}
+                    className="text-xs px-3 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Delete rule "${rule.name}"?`)) {
+                        deleteMutation.mutate(rule.id);
+                      }
+                    }}
+                    disabled={deleteMutation.isPending}
+                    className="text-xs px-3 py-1.5 rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Delete
+                  </button>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Trigger: {TRIGGER_TYPES.find((t) => t.value === rule.trigger.type)?.label ?? rule.trigger.type}
-                  {rule.conditions.length > 0 && ` | ${rule.conditions.length} condition(s)`}
-                  {rule.actions.length > 0 && ` | ${rule.actions.length} action(s)`}
-                </p>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button
-                  onClick={() => toggleMutation.mutate(rule.id)}
-                  disabled={toggleMutation.isPending}
-                  className={`text-xs px-3 py-1.5 rounded border transition-colors disabled:opacity-50 ${
-                    rule.isEnabled
-                      ? 'border-gray-300 text-gray-600 hover:bg-gray-50'
-                      : 'border-green-300 text-green-700 hover:bg-green-50'
-                  }`}
-                >
-                  {rule.isEnabled ? 'Disable' : 'Enable'}
-                </button>
-                <button
-                  onClick={() => handleOpenEdit(rule)}
-                  className="text-xs px-3 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => {
-                    if (window.confirm(`Delete rule "${rule.name}"?`)) {
-                      deleteMutation.mutate(rule.id);
-                    }
-                  }}
-                  disabled={deleteMutation.isPending}
-                  className="text-xs px-3 py-1.5 rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                >
-                  Delete
-                </button>
-              </div>
+
+              {/* Logs panel */}
+              {logsRuleId === rule.id && (
+                <div className="bg-gray-50 border border-t-0 rounded-b-lg px-4 py-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <h5 className="text-xs font-semibold text-gray-700">
+                      Execution Logs
+                      <span className="ml-1 font-normal text-gray-400">(last 50)</span>
+                    </h5>
+                    <button
+                      onClick={() => setLogsRuleId(null)}
+                      className="text-xs text-gray-400 hover:text-gray-600"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  {logsLoading ? (
+                    <p className="text-xs text-gray-400">Loading logs...</p>
+                  ) : logs.length === 0 ? (
+                    <p className="text-xs text-gray-400 italic">No logs yet for this rule.</p>
+                  ) : (
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
+                      {logs.map((log: AutomationLog) => (
+                        <div
+                          key={log.id}
+                          className="flex items-center gap-3 py-1.5 px-2 bg-white rounded border border-gray-200 text-xs"
+                        >
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
+                              log.status === 'success'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-red-100 text-red-700'
+                            }`}
+                          >
+                            {log.status}
+                          </span>
+                          <span className="text-gray-500 flex-shrink-0">
+                            {new Date(log.createdAt).toLocaleString('ko-KR', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                            })}
+                          </span>
+                          {log.cardId && (
+                            <span className="text-gray-500 flex-shrink-0">
+                              Card: {log.cardId.slice(0, 8)}...
+                            </span>
+                          )}
+                          {log.details != null && typeof log.details === 'object' ? (
+                            <span className="text-gray-400 truncate">
+                              {String(JSON.stringify(log.details)).slice(0, 80)}
+                            </span>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

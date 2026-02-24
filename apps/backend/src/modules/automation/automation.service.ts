@@ -3,7 +3,7 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
-import { Priority } from '@prisma/client';
+import { Prisma, Priority } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAutomationDto } from './dto/create-automation.dto';
 import { UpdateAutomationDto } from './dto/update-automation.dto';
@@ -17,7 +17,9 @@ export type ActionType =
   | 'setPriority'
   | 'addComment'
   | 'setDueDate'
-  | 'archive';
+  | 'archive'
+  | 'sendNotification'
+  | 'createChecklist';
 
 export interface AutomationCondition {
   field: string;
@@ -146,12 +148,45 @@ export class AutomationService {
     for (const action of actions) {
       try {
         await this.applyAction(action, card);
+        await this.prisma.automationExecutionLog.create({
+          data: {
+            ruleId,
+            cardId: card.id,
+            status: 'success',
+            details: {
+              actionType: action.type,
+              params: (action.params ?? {}) as Prisma.InputJsonValue,
+            } as Prisma.InputJsonValue,
+          },
+        });
       } catch (err) {
         this.logger.warn(
           `Failed to apply action "${action.type}" for rule "${rule.name}": ${(err as Error).message}`,
         );
+        await this.prisma.automationExecutionLog.create({
+          data: {
+            ruleId,
+            cardId: card.id,
+            status: 'failure',
+            details: {
+              actionType: action.type,
+              params: (action.params ?? {}) as Prisma.InputJsonValue,
+              error: (err as Error).message,
+            } as Prisma.InputJsonValue,
+          },
+        }).catch((logErr) => {
+          this.logger.error(`Failed to write execution log: ${(logErr as Error).message}`);
+        });
       }
     }
+  }
+
+  async getExecutionLogs(ruleId: string, options?: { limit?: number }) {
+    return this.prisma.automationExecutionLog.findMany({
+      where: { ruleId },
+      orderBy: { createdAt: 'desc' },
+      take: options?.limit ?? 50,
+    });
   }
 
   async triggerRules(
@@ -297,6 +332,52 @@ export class AutomationService {
           where: { id: card.id },
           data: { archivedAt: new Date() },
         });
+        break;
+      }
+
+      case 'sendNotification': {
+        const title = params['title'] as string | undefined;
+        const message = params['message'] as string | undefined;
+        const link = params['link'] as string | undefined;
+
+        if (title && message) {
+          const assignees = await this.prisma.cardAssignee.findMany({
+            where: { cardId: card.id },
+            select: { userId: true },
+          });
+          for (const assignee of assignees) {
+            await this.prisma.notification.create({
+              data: {
+                userId: assignee.userId,
+                type: 'CARD_MOVED',
+                title,
+                message,
+                link: link ?? `/boards/${card.boardId}`,
+              },
+            });
+          }
+        }
+        break;
+      }
+
+      case 'createChecklist': {
+        const checklistTitle = params['title'] as string | undefined;
+        if (checklistTitle) {
+          const lastChecklist = await this.prisma.checklist.findFirst({
+            where: { cardId: card.id },
+            orderBy: { position: 'desc' },
+            select: { position: true },
+          });
+          const position = lastChecklist ? lastChecklist.position + 1024 : 1024;
+
+          await this.prisma.checklist.create({
+            data: {
+              cardId: card.id,
+              title: checklistTitle,
+              position,
+            },
+          });
+        }
         break;
       }
 

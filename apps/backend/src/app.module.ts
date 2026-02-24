@@ -21,6 +21,8 @@ import { CardTagModule } from './modules/card-tag/card-tag.module';
 import { AutomationModule } from './modules/automation/automation.module';
 import { TemplateModule } from './modules/template/template.module';
 import { CustomFieldModule } from './modules/custom-field/custom-field.module';
+import { RecurringModule } from './modules/recurring/recurring.module';
+import { ReportModule } from './modules/report/report.module';
 
 @Module({
   imports: [
@@ -48,6 +50,8 @@ import { CustomFieldModule } from './modules/custom-field/custom-field.module';
     AutomationModule,
     TemplateModule,
     CustomFieldModule,
+    RecurringModule,
+    ReportModule,
   ],
 })
 export class AppModule {}

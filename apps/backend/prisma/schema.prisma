@@ -148,6 +148,8 @@ model Board {
   automationRules AutomationRule[]
   favorites       BoardFavorite[]
   customFields    CustomFieldDefinition[]
+  columnSnapshots ColumnSnapshot[]
+  cardStatusLogs  CardStatusLog[]
 
   @@map("boards")
 }
@@ -250,6 +252,8 @@ model Card {
   targetLinks CardLink[] @relation("TargetCard")
   activities        Activity[]
   customFieldValues CustomFieldValue[]
+  recurringConfig   RecurringCardConfig?
+  statusLogs        CardStatusLog[]
 
   @@map("cards")
 }
@@ -403,8 +407,9 @@ model AutomationRule {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  board     Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  createdBy User  @relation(fields: [createdById], references: [id])
+  board         Board                    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  createdBy     User                     @relation(fields: [createdById], references: [id])
+  executionLogs AutomationExecutionLog[]
 
   @@map("automation_rules")
 }
@@ -488,4 +493,63 @@ model CustomFieldValue {
 
   @@unique([cardId, fieldId])
   @@map("custom_field_values")
+}
+
+model RecurringCardConfig {
+  id             String   @id @default(uuid())
+  cardId         String   @unique @map("card_id")
+  cronExpression String   @map("cron_expression")  // e.g., "0 9 * * 1" = every Monday 9am
+  nextRunAt      DateTime @map("next_run_at")
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@map("recurring_card_configs")
+}
+
+model AutomationExecutionLog {
+  id        String   @id @default(uuid())
+  ruleId    String   @map("rule_id")
+  cardId    String?  @map("card_id")
+  status    String   // 'success' | 'failure'
+  details   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  rule AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, createdAt])
+  @@map("automation_execution_logs")
+}
+
+model ColumnSnapshot {
+  id        String   @id @default(uuid())
+  boardId   String   @map("board_id")
+  columnId  String   @map("column_id")
+  cardCount Int      @map("card_count")
+  date      DateTime @db.Date
+  createdAt DateTime @default(now()) @map("created_at")
+
+  board  Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@unique([columnId, date])
+  @@index([boardId, date])
+  @@map("column_snapshots")
+}
+
+model CardStatusLog {
+  id           String   @id @default(uuid())
+  cardId       String   @map("card_id")
+  boardId      String   @map("board_id")
+  fromColumnId String?  @map("from_column_id")
+  toColumnId   String   @map("to_column_id")
+  movedAt      DateTime @default(now()) @map("moved_at")
+
+  card  Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId, movedAt])
+  @@index([boardId, movedAt])
+  @@map("card_status_logs")
 }

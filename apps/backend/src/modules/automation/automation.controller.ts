@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -17,6 +18,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AutomationService } from './automation.service';
@@ -125,6 +127,23 @@ export class AutomationController {
     const rule = await this.automationService.findById(id);
     await this.requireBoardRole(rule.boardId, user.id, [Role.OWNER, Role.ADMIN]);
     return this.automationService.toggle(id);
+  }
+
+  @Get('automations/:id/logs')
+  @ApiOperation({ summary: 'Get execution logs for an automation rule' })
+  @ApiParam({ name: 'id', description: 'Automation rule ID' })
+  @ApiQuery({ name: 'limit', description: 'Max number of logs to return', required: false })
+  @ApiResponse({ status: 200, description: 'Execution logs' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Rule not found' })
+  async getExecutionLogs(
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+  ) {
+    await this.automationService.findById(id);
+    return this.automationService.getExecutionLogs(id, {
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
   }
 
   // ── Helpers ──

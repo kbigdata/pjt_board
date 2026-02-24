@@ -41,6 +41,10 @@ describe('AutomationService', () => {
         update: jest.fn(),
         delete: jest.fn(),
       },
+      automationExecutionLog: {
+        create: jest.fn().mockResolvedValue({}),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       card: {
         update: jest.fn(),
       },
@@ -51,6 +55,14 @@ describe('AutomationService', () => {
       cardAssignee: {
         findUnique: jest.fn(),
         create: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      notification: {
+        create: jest.fn().mockResolvedValue({}),
+      },
+      checklist: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
       },
       comment: {
         create: jest.fn(),

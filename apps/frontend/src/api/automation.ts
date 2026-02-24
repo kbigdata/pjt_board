@@ -23,6 +23,15 @@ export interface AutomationRule {
   updatedAt: string;
 }
 
+export interface AutomationLog {
+  id: string;
+  ruleId: string;
+  cardId: string | null;
+  status: string;
+  details: unknown;
+  createdAt: string;
+}
+
 export const automationApi = {
   list: (boardId: string) =>
     apiClient.get<AutomationRule[]>(`/boards/${boardId}/automations`).then((r) => r.data),
@@ -41,4 +50,7 @@ export const automationApi = {
 
   toggle: (id: string) =>
     apiClient.post<AutomationRule>(`/automations/${id}/toggle`).then((r) => r.data),
+
+  getLogs: (ruleId: string) =>
+    apiClient.get<AutomationLog[]>(`/automations/${ruleId}/logs`).then((r) => r.data),
 };

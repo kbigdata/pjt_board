@@ -44,6 +44,16 @@ export default function AppLayout() {
               >
                 Workspaces
               </Link>
+              <Link
+                to="/dashboard"
+                className={`text-sm font-medium ${
+                  location.pathname === '/dashboard'
+                    ? 'text-blue-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Dashboard
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">
