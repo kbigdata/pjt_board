@@ -54,6 +54,18 @@ export default function AppLayout() {
               >
                 Dashboard
               </Link>
+              {user?.isAdmin && (
+                <Link
+                  to="/admin"
+                  className={`text-sm font-medium ${
+                    location.pathname.startsWith('/admin')
+                      ? 'text-blue-600'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Admin
+                </Link>
+              )}
             </nav>
           </div>
           <div className="flex items-center gap-4">

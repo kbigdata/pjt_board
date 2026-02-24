@@ -21,6 +21,8 @@ describe('AuthService', () => {
     name: 'Test User',
     password: '',
     avatarUrl: null,
+    isAdmin: false,
+    deactivatedAt: null,
     refreshToken: null,
     refreshTokenExpiresAt: null,
     createdAt: new Date(),

@@ -62,6 +62,7 @@ export enum NotificationType {
 export interface JwtPayload {
   sub: string;
   email: string;
+  isAdmin?: boolean;
 }
 
 export interface TokenResponse {

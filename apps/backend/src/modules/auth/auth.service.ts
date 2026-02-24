@@ -22,7 +22,7 @@ export class AuthService {
 
   async register(data: { email: string; name: string; password: string }) {
     const user = await this.userService.create(data);
-    const tokens = await this.generateTokens({ sub: user.id, email: user.email });
+    const tokens = await this.generateTokens({ sub: user.id, email: user.email, isAdmin: user.isAdmin });
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
     return {
@@ -42,7 +42,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const tokens = await this.generateTokens({ sub: user.id, email: user.email });
+    if (user.deactivatedAt) {
+      throw new UnauthorizedException('Account has been deactivated');
+    }
+
+    const tokens = await this.generateTokens({ sub: user.id, email: user.email, isAdmin: user.isAdmin });
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
     return {
@@ -80,7 +84,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    const tokens = await this.generateTokens({ sub: user.id, email: user.email });
+    const tokens = await this.generateTokens({ sub: user.id, email: user.email, isAdmin: user.isAdmin });
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
     return tokens;

@@ -11,11 +11,12 @@ async function main() {
 
   const admin = await prisma.user.upsert({
     where: { email: 'admin@kanflow.dev' },
-    update: {},
+    update: { isAdmin: true },
     create: {
       email: 'admin@kanflow.dev',
       name: 'Admin User',
       password,
+      isAdmin: true,
     },
   });
 

@@ -1,6 +1,6 @@
 # KanFlow 관리자 메뉴얼
 
-**버전**: 1.0.0
+**버전**: 1.1.0
 **최종 업데이트**: 2026-02-24
 **대상**: KanFlow 자체 호스팅 서버 관리자
 
@@ -71,6 +71,16 @@
 14. [API 문서](#14-api-문서)
     - 14.1 [Swagger UI 접속](#141-swagger-ui-접속)
     - 14.2 [주요 API 엔드포인트 목록](#142-주요-api-엔드포인트-목록)
+15. [관리자 패널 (Admin Panel)](#15-관리자-패널-admin-panel)
+    - 15.1 [관리자 패널 개요](#151-관리자-패널-개요)
+    - 15.2 [관리자 계정 설정](#152-관리자-계정-설정)
+    - 15.3 [관리자 패널 접속](#153-관리자-패널-접속)
+    - 15.4 [시스템 대시보드](#154-시스템-대시보드)
+    - 15.5 [사용자 관리](#155-사용자-관리)
+    - 15.6 [워크스페이스 관리](#156-워크스페이스-관리)
+    - 15.7 [시스템 설정](#157-시스템-설정)
+    - 15.8 [접근 제어 및 보안](#158-접근-제어-및-보안)
+    - 15.9 [관리자 API 엔드포인트](#159-관리자-api-엔드포인트)
 
 ---
 
@@ -2087,5 +2097,314 @@ location /api/docs {
 
 ---
 
-*본 메뉴얼은 KanFlow v1.0.0 기준으로 작성되었습니다.*
+---
+
+## 15. 관리자 패널 (Admin Panel)
+
+KanFlow 관리자 패널은 시스템 전체를 관리할 수 있는 웹 기반 관리 화면입니다. 사용자 관리, 워크스페이스 모니터링, 시스템 설정 변경 등을 브라우저에서 직접 수행할 수 있습니다.
+
+### 15.1 관리자 패널 개요
+
+관리자 패널은 다음 4개의 주요 기능을 제공합니다:
+
+| 기능 | 경로 | 설명 |
+|------|------|------|
+| 시스템 대시보드 | `/admin` | 전체 사용자 수, 워크스페이스 수, 보드 수 등 핵심 통계 |
+| 사용자 관리 | `/admin/users` | 사용자 목록 조회, 검색, 관리자 권한 부여, 비활성화, 비밀번호 초기화 |
+| 워크스페이스 관리 | `/admin/workspaces` | 전체 워크스페이스 목록, 멤버/보드 상세 조회 |
+| 시스템 설정 | `/admin/settings` | 파일 업로드 제한, 사용자 등록 허용 여부 등 시스템 전역 설정 |
+
+> **중요:** 관리자 패널은 `isAdmin` 플래그가 `true`인 사용자만 접근할 수 있습니다. 일반 사용자가 `/admin` URL에 직접 접근하면 메인 페이지(`/`)로 자동 리다이렉트됩니다.
+
+### 15.2 관리자 계정 설정
+
+#### 초기 관리자 계정
+
+시드 데이터(`pnpm db:seed`)를 실행하면 기본 관리자 계정이 생성됩니다:
+
+| 항목 | 값 |
+|------|-----|
+| 이메일 | `admin@kanflow.dev` |
+| 비밀번호 | `password123` |
+| 관리자 여부 | `true` |
+
+> **경고:** 운영 환경에서는 반드시 초기 관리자 계정의 비밀번호를 변경하십시오.
+
+#### SQL로 관리자 권한 직접 부여
+
+시드 데이터 없이 기존 사용자에게 관리자 권한을 부여하려면 다음 SQL을 실행합니다:
+
+```bash
+# 개발 환경
+docker exec -it kanflow-postgres-dev psql -U kanflow -d kanflow_dev \
+  -c "UPDATE users SET is_admin = true WHERE email = 'your-admin@example.com';"
+
+# 운영 환경
+docker exec -it kanflow-postgres-prod psql -U kanflow -d kanflow_prod \
+  -c "UPDATE users SET is_admin = true WHERE email = 'your-admin@example.com';"
+```
+
+### 15.3 관리자 패널 접속
+
+#### 단계 1: 관리자 계정으로 로그인
+
+KanFlow 로그인 페이지(`http://your-server/login`)에서 관리자 계정으로 로그인합니다.
+
+![로그인 페이지](screenshots/admin/03-login-page.png)
+
+관리자 이메일과 비밀번호를 입력합니다.
+
+![로그인 정보 입력](screenshots/admin/04-admin-login-filled.png)
+
+#### 단계 2: 헤더의 Admin 링크 확인
+
+로그인 후 상단 네비게이션 바에 **"Admin"** 링크가 표시됩니다. 이 링크는 `isAdmin`이 `true`인 사용자에게만 표시됩니다.
+
+![Admin 링크가 표시된 헤더](screenshots/admin/05-admin-link-header.png)
+
+> **참고:** 일반 사용자(관리자가 아닌 사용자)의 경우 "Admin" 링크가 표시되지 않습니다. 아래 이미지에서 일반 사용자 Alice Kim으로 로그인했을 때 헤더에 "Admin" 링크가 없는 것을 확인할 수 있습니다.
+
+![일반 사용자 헤더 - Admin 링크 없음](screenshots/admin/01-non-admin-no-link.png)
+
+#### 단계 3: Admin 패널 진입
+
+상단 "Admin" 링크를 클릭하면 관리자 패널로 이동합니다. 좌측에 다크 테마의 사이드바 네비게이션이 표시됩니다.
+
+### 15.4 시스템 대시보드
+
+관리자 패널에 진입하면 기본으로 **시스템 대시보드**가 표시됩니다.
+
+![시스템 대시보드](screenshots/admin/06-dashboard.png)
+
+#### 통계 카드
+
+화면 상단에 5개의 핵심 통계 카드가 표시됩니다:
+
+| 카드 | 설명 |
+|------|------|
+| **Total Users** | 시스템에 등록된 전체 사용자 수 |
+| **Active Users** | 비활성화되지 않은 활성 사용자 수 |
+| **Workspaces** | 전체 워크스페이스 수 |
+| **Boards** | 전체 보드 수 |
+| **Cards** | 전체 카드 수 |
+
+#### 최근 가입 사용자
+
+통계 카드 아래에 **Recent Users** 섹션이 표시되며, 최근에 가입한 사용자 목록(최대 5명)이 이름, 이메일, 가입일과 함께 나열됩니다.
+
+### 15.5 사용자 관리
+
+좌측 사이드바에서 **"Users"**를 클릭하면 사용자 관리 페이지로 이동합니다.
+
+![사용자 관리 페이지](screenshots/admin/07-users-list.png)
+
+#### 사용자 테이블
+
+전체 사용자 목록이 테이블 형태로 표시됩니다:
+
+| 컬럼 | 설명 |
+|------|------|
+| **Name** | 사용자 이름 |
+| **Email** | 이메일 주소 |
+| **Joined** | 가입 날짜 |
+| **Status** | 활성 상태 — 녹색 `Active` 또는 빨간색 `Deactivated` |
+| **Admin** | 관리자 여부 — `Admin`(보라색 배지) 또는 `User` 버튼 |
+| **Actions** | 비활성화/활성화, 비밀번호 초기화 버튼 |
+
+#### 기능 1: 사용자 검색
+
+검색창에 이름 또는 이메일을 입력한 후 **"Search"** 버튼을 클릭하면 검색 결과가 필터링됩니다. 검색을 취소하려면 **"Clear"** 버튼을 클릭합니다.
+
+![사용자 검색](screenshots/admin/08-users-search.png)
+
+**사용 방법:**
+1. 검색창에 검색어 입력 (이름 또는 이메일의 일부)
+2. **"Search"** 버튼 클릭
+3. 필터링된 결과 확인
+4. **"Clear"** 버튼으로 검색 초기화
+
+#### 기능 2: 관리자 권한 토글
+
+Admin 컬럼의 버튼을 클릭하면 해당 사용자의 관리자 권한을 즉시 변경할 수 있습니다.
+
+![관리자 권한 토글 결과](screenshots/admin/09-users-admin-toggle.png)
+
+**사용 방법:**
+1. 대상 사용자 행의 **Admin** 컬럼에서 `User` 버튼 클릭 → `Admin`으로 변경
+2. `Admin` 버튼 클릭 → `User`로 변경 (관리자 권한 해제)
+
+> **주의:** 자기 자신의 관리자 권한을 해제하지 않도록 주의하십시오. 권한이 해제되면 관리자 패널에 접근할 수 없게 됩니다.
+
+#### 기능 3: 사용자 비활성화 / 활성화
+
+Actions 컬럼의 **"Deactivate"** 버튼을 클릭하면 사용자를 비활성화합니다. 비활성화된 사용자는 로그인할 수 없습니다.
+
+![사용자 비활성화](screenshots/admin/10-users-deactivated.png)
+
+비활성화된 사용자의 상태 뱃지가 빨간색 **"Deactivated"**로 변경되며, 버튼이 **"Activate"**로 바뀝니다.
+
+![사용자 재활성화](screenshots/admin/11-users-activated.png)
+
+**사용 방법:**
+1. 대상 사용자 행의 **"Deactivate"** 버튼 클릭 → 사용자 비활성화
+2. 상태가 `Deactivated`로 변경됨
+3. **"Activate"** 버튼 클릭 → 사용자 재활성화
+4. 상태가 `Active`로 복구됨
+
+> **참고:** 비활성화된 사용자는 현재 세션이 만료되면 더 이상 로그인할 수 없습니다. 이미 발급된 JWT 토큰은 만료 시까지 유효하지만, 토큰 갱신(refresh)은 차단됩니다.
+
+#### 기능 4: 비밀번호 초기화
+
+Actions 컬럼의 **"Reset PW"** 버튼을 클릭하면 해당 사용자의 비밀번호를 임시 비밀번호로 초기화합니다.
+
+**단계 1:** "Reset PW" 클릭 시 확인 다이얼로그가 표시됩니다.
+
+![비밀번호 초기화 확인](screenshots/admin/12-users-reset-pw-confirm.png)
+
+**단계 2:** "확인"을 클릭하면 임시 비밀번호가 생성되어 노란색 배너에 표시됩니다.
+
+![임시 비밀번호 생성 결과](screenshots/admin/13-users-reset-pw-result.png)
+
+**사용 방법:**
+1. 대상 사용자 행의 **"Reset PW"** 버튼 클릭
+2. 확인 다이얼로그에서 **"확인"** 클릭
+3. 노란색 배너에 표시된 **임시 비밀번호**를 복사하여 사용자에게 전달
+4. **"Dismiss"** 버튼으로 배너 닫기
+
+> **중요:** 임시 비밀번호는 화면에 한 번만 표시됩니다. 배너를 닫으면 다시 확인할 수 없으므로 반드시 복사해 두십시오. 사용자에게 로그인 후 즉시 비밀번호를 변경하도록 안내하십시오.
+
+### 15.6 워크스페이스 관리
+
+좌측 사이드바에서 **"Workspaces"**를 클릭하면 워크스페이스 관리 페이지로 이동합니다.
+
+![워크스페이스 관리 페이지](screenshots/admin/14-workspaces-list.png)
+
+#### 워크스페이스 테이블
+
+전체 워크스페이스 목록이 테이블 형태로 표시됩니다:
+
+| 컬럼 | 설명 |
+|------|------|
+| **Name** | 워크스페이스 이름 |
+| **Owner** | 소유자 이름 |
+| **Members** | 멤버 수 |
+| **Boards** | 보드 수 |
+| **Created** | 생성 날짜 |
+
+#### 워크스페이스 상세 조회
+
+테이블의 **"Details"** 버튼을 클릭하면 오른쪽에 상세 패널이 열립니다.
+
+![워크스페이스 상세 패널](screenshots/admin/15-workspaces-detail.png)
+
+상세 패널에는 다음 정보가 표시됩니다:
+- **워크스페이스 이름 및 설명**
+- **Members (N)**: 멤버 목록과 각 멤버의 역할 (OWNER, ADMIN, MEMBER)
+- **Boards (N)**: 해당 워크스페이스의 보드 목록
+
+**사용 방법:**
+1. 원하는 워크스페이스의 **"Details"** 버튼 클릭
+2. 오른쪽에 상세 패널이 열림
+3. 멤버 목록과 보드 목록 확인
+4. **"Close"** 버튼으로 패널 닫기
+
+### 15.7 시스템 설정
+
+좌측 사이드바에서 **"Settings"**를 클릭하면 시스템 설정 페이지로 이동합니다.
+
+![시스템 설정 페이지](screenshots/admin/16-settings.png)
+
+#### 설정 항목
+
+| 설정명 | 키 | 기본값 | 설명 |
+|--------|-----|--------|------|
+| Max File Upload Size (MB) | `MAX_FILE_UPLOAD_SIZE_MB` | `10` | 첨부파일 최대 업로드 크기 (MB) |
+| Allow User Registration | `ALLOW_USER_REGISTRATION` | `Yes` | 새 사용자 회원가입 허용 여부 |
+| Max Workspaces Per User | `MAX_WORKSPACES_PER_USER` | `10` | 사용자당 최대 워크스페이스 생성 수 |
+| Max Boards Per Workspace | `MAX_BOARDS_PER_WORKSPACE` | `50` | 워크스페이스당 최대 보드 생성 수 |
+
+#### 설정 변경 및 저장
+
+![설정 저장 완료](screenshots/admin/17-settings-saved.png)
+
+**사용 방법:**
+1. 변경하고 싶은 설정 항목의 입력 필드 값을 수정
+2. "Allow User Registration"은 드롭다운에서 Yes/No 선택
+3. **"Save Settings"** 버튼 클릭
+4. 화면 하단에 **"Settings saved!"** 확인 메시지 표시
+
+> **참고:** 시스템 설정은 `system_settings` 테이블에 키-값 쌍으로 저장됩니다. 설정이 존재하지 않으면 기본값이 사용됩니다. 설정 변경은 즉시 적용됩니다.
+
+### 15.8 접근 제어 및 보안
+
+#### 프론트엔드 접근 제어
+
+- 관리자가 아닌 사용자가 `/admin` URL에 직접 접근하면 **자동으로 메인 페이지(`/`)로 리다이렉트**됩니다.
+- 헤더의 "Admin" 네비게이션 링크는 `isAdmin`이 `true`인 사용자에게만 렌더링됩니다.
+
+![일반 사용자 접근 시 리다이렉트](screenshots/admin/02-non-admin-redirect.png)
+
+#### 백엔드 접근 제어
+
+모든 관리자 API 엔드포인트(`/api/admin/*`)는 이중 가드로 보호됩니다:
+
+1. **JwtAuthGuard**: JWT 토큰 인증 확인
+2. **SystemAdminGuard**: `request.user.isAdmin === true` 확인
+
+관리자가 아닌 사용자가 API를 직접 호출하면 `403 Forbidden` 응답이 반환됩니다.
+
+```bash
+# 관리자가 아닌 사용자의 토큰으로 API 호출 시
+curl -H "Authorization: Bearer <non-admin-token>" http://localhost:4000/api/admin/users
+# 결과: 403 Forbidden
+```
+
+#### 비활성화된 사용자 차단
+
+- 비활성화된 사용자(`deactivatedAt`이 설정된 사용자)는 **로그인이 차단**됩니다.
+- JWT Strategy의 `validate()` 함수에서 `deactivatedAt` 필드를 확인하여, 비활성화된 사용자의 토큰 갱신을 차단합니다.
+
+### 15.9 관리자 API 엔드포인트
+
+모든 관리자 API는 `/api/admin` 프리픽스로 시작하며, `JwtAuthGuard` + `SystemAdminGuard`가 적용됩니다.
+
+| 메서드 | 경로 | 설명 |
+|--------|------|------|
+| GET | `/api/admin/users` | 사용자 목록 (페이지네이션, 검색) |
+| GET | `/api/admin/users/:id` | 사용자 상세 |
+| PATCH | `/api/admin/users/:id` | 사용자 수정 (isAdmin, deactivated) |
+| POST | `/api/admin/users/:id/reset-password` | 비밀번호 초기화 |
+| GET | `/api/admin/workspaces` | 워크스페이스 목록 (페이지네이션, 검색) |
+| GET | `/api/admin/workspaces/:id` | 워크스페이스 상세 |
+| GET | `/api/admin/stats` | 시스템 통계 |
+| GET | `/api/admin/settings` | 시스템 설정 조회 |
+| PATCH | `/api/admin/settings` | 시스템 설정 변경 |
+
+#### 쿼리 파라미터
+
+사용자 목록 및 워크스페이스 목록 API는 다음 쿼리 파라미터를 지원합니다:
+
+| 파라미터 | 타입 | 기본값 | 설명 |
+|----------|------|--------|------|
+| `page` | number | `1` | 페이지 번호 |
+| `limit` | number | `20` | 페이지당 항목 수 |
+| `search` | string | - | 검색어 (이름/이메일 부분 일치) |
+
+#### 응답 형식 (페이지네이션)
+
+```json
+{
+  "data": [...],
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 5
+  }
+}
+```
+
+---
+
+*본 메뉴얼은 KanFlow v1.1.0 기준으로 작성되었습니다.*
 *최신 API 명세는 Swagger UI(`/api/docs`)를 참조하십시오.*

@@ -76,6 +76,8 @@ model User {
   avatarUrl             String?   @map("avatar_url")
   refreshToken          String?   @map("refresh_token")
   refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  isAdmin               Boolean   @default(false) @map("is_admin")
+  deactivatedAt         DateTime? @map("deactivated_at")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
 
@@ -585,4 +587,12 @@ model SavedFilter {
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("saved_filters")
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
 }

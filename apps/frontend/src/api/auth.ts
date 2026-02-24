@@ -17,6 +17,7 @@ export interface AuthResponse {
     email: string;
     name: string;
     avatarUrl: string | null;
+    isAdmin: boolean;
   };
   tokens: {
     accessToken: string;
@@ -34,5 +35,5 @@ export const authApi = {
   logout: () => apiClient.post('/auth/logout').then((r) => r.data),
 
   getProfile: () =>
-    apiClient.get<{ id: string; email: string; name: string; avatarUrl: string | null }>('/users/me').then((r) => r.data),
+    apiClient.get<{ id: string; email: string; name: string; avatarUrl: string | null; isAdmin: boolean }>('/users/me').then((r) => r.data),
 };

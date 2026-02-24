@@ -24,6 +24,7 @@ import { CustomFieldModule } from './modules/custom-field/custom-field.module';
 import { RecurringModule } from './modules/recurring/recurring.module';
 import { ReportModule } from './modules/report/report.module';
 import { SavedFilterModule } from './modules/saved-filter/saved-filter.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { SavedFilterModule } from './modules/saved-filter/saved-filter.module';
     RecurringModule,
     ReportModule,
     SavedFilterModule,
+    AdminModule,
   ],
 })
 export class AppModule {}
