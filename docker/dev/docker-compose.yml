@@ -1,0 +1,55 @@
+version: "3.8"
+
+services:
+  postgres-dev:
+    image: postgres:16-alpine
+    container_name: kanflow-postgres-dev
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: kanflow
+      POSTGRES_PASSWORD: kanflow_dev_2026
+      POSTGRES_DB: kanflow_dev
+    volumes:
+      - kanflow-pg-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kanflow -d kanflow_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-dev:
+    image: redis:7-alpine
+    container_name: kanflow-redis-dev
+    ports:
+      - "6380:6379"
+    volumes:
+      - kanflow-redis-dev:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-dev:
+    image: minio/minio:latest
+    container_name: kanflow-minio-dev
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: kanflow_minio
+      MINIO_ROOT_PASSWORD: kanflow_minio_secret_2026
+    volumes:
+      - kanflow-minio-dev:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  kanflow-pg-dev:
+  kanflow-redis-dev:
+  kanflow-minio-dev:

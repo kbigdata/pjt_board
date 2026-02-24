@@ -1,0 +1,379 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Enums
+// ============================================================
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum Priority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ColumnType {
+  TODO
+  IN_PROGRESS
+  DONE
+  CUSTOM
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum LinkType {
+  BLOCKS
+  BLOCKED_BY
+  RELATES_TO
+  DUPLICATES
+}
+
+enum ActivityAction {
+  CREATED
+  UPDATED
+  MOVED
+  ARCHIVED
+  DELETED
+  COMMENTED
+  ASSIGNED
+  LABEL_ADDED
+  LABEL_REMOVED
+}
+
+// ============================================================
+// Models
+// ============================================================
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  password  String
+  avatarUrl String?  @map("avatar_url")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workspaceMembers WorkspaceMember[]
+  boardMembers     BoardMember[]
+  createdBoards    Board[]          @relation("BoardCreator")
+  createdCards     Card[]           @relation("CardCreator")
+  cardAssignees    CardAssignee[]
+  comments         Comment[]
+  attachments      Attachment[]
+  activities       Activity[]
+  automationRules  AutomationRule[]
+
+  @@map("users")
+}
+
+model Workspace {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  ownerId     String   @map("owner_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  members WorkspaceMember[]
+  boards  Board[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  userId      String   @map("user_id")
+  role        Role     @default(MEMBER)
+  joinedAt    DateTime @default(now()) @map("joined_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model Board {
+  id          String     @id @default(uuid())
+  workspaceId String     @map("workspace_id")
+  title       String
+  description String?
+  visibility  Visibility @default(PRIVATE)
+  position    Float      @default(0)
+  createdById String     @map("created_by_id")
+  archivedAt  DateTime?  @map("archived_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy       User             @relation("BoardCreator", fields: [createdById], references: [id])
+  members         BoardMember[]
+  columns         Column[]
+  swimlanes       Swimlane[]
+  cards           Card[]
+  labels          Label[]
+  activities      Activity[]
+  automationRules AutomationRule[]
+
+  @@map("boards")
+}
+
+model BoardMember {
+  id       String   @id @default(uuid())
+  boardId  String   @map("board_id")
+  userId   String   @map("user_id")
+  role     Role     @default(MEMBER)
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, userId])
+  @@map("board_members")
+}
+
+model Column {
+  id         String     @id @default(uuid())
+  boardId    String     @map("board_id")
+  title      String
+  columnType ColumnType @default(CUSTOM) @map("column_type")
+  position   Float      @default(0)
+  wipLimit   Int?       @map("wip_limit")
+  color      String?
+  archivedAt DateTime?  @map("archived_at")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards Card[]
+
+  @@map("columns")
+}
+
+model Swimlane {
+  id         String    @id @default(uuid())
+  boardId    String    @map("board_id")
+  title      String
+  position   Float     @default(0)
+  color      String?
+  isDefault  Boolean   @default(false) @map("is_default")
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards Card[]
+
+  @@map("swimlanes")
+}
+
+model Card {
+  id             String    @id @default(uuid())
+  boardId        String    @map("board_id")
+  columnId       String    @map("column_id")
+  swimlaneId     String?   @map("swimlane_id")
+  cardNumber     Int       @map("card_number")
+  title          String
+  description    String?
+  priority       Priority  @default(MEDIUM)
+  position       Float     @default(0)
+  coverColor     String?   @map("cover_color")
+  coverImageUrl  String?   @map("cover_image_url")
+  startDate      DateTime? @map("start_date")
+  dueDate        DateTime? @map("due_date")
+  estimatedHours Float?    @map("estimated_hours")
+  actualHours    Float?    @map("actual_hours")
+  createdById    String    @map("created_by_id")
+  archivedAt     DateTime? @map("archived_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  board      Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  column     Column    @relation(fields: [columnId], references: [id])
+  swimlane   Swimlane? @relation(fields: [swimlaneId], references: [id])
+  createdBy  User      @relation("CardCreator", fields: [createdById], references: [id])
+  assignees  CardAssignee[]
+  labels     CardLabel[]
+  comments   Comment[]
+  attachments Attachment[]
+  checklists Checklist[]
+  tags       CardTag[]
+  sourceLinks CardLink[] @relation("SourceCard")
+  targetLinks CardLink[] @relation("TargetCard")
+  activities Activity[]
+
+  @@map("cards")
+}
+
+model CardAssignee {
+  id         String   @id @default(uuid())
+  cardId     String   @map("card_id")
+  userId     String   @map("user_id")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, userId])
+  @@map("card_assignees")
+}
+
+model Label {
+  id        String   @id @default(uuid())
+  boardId   String   @map("board_id")
+  name      String
+  color     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  board Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards CardLabel[]
+
+  @@map("labels")
+}
+
+model CardLabel {
+  id         String   @id @default(uuid())
+  cardId     String   @map("card_id")
+  labelId    String   @map("label_id")
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  card  Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, labelId])
+  @@map("card_labels")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  cardId    String   @map("card_id")
+  authorId  String   @map("author_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  card   Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+
+  @@map("comments")
+}
+
+model Attachment {
+  id           String   @id @default(uuid())
+  cardId       String   @map("card_id")
+  uploadedById String   @map("uploaded_by_id")
+  fileName     String   @map("file_name")
+  fileUrl      String   @map("file_url")
+  fileSize     Int      @map("file_size")
+  mimeType     String   @map("mime_type")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  card       Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+
+  @@map("attachments")
+}
+
+model Checklist {
+  id        String   @id @default(uuid())
+  cardId    String   @map("card_id")
+  title     String
+  position  Float    @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  card  Card            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  items ChecklistItem[]
+
+  @@map("checklists")
+}
+
+model ChecklistItem {
+  id          String   @id @default(uuid())
+  checklistId String   @map("checklist_id")
+  title       String
+  isChecked   Boolean  @default(false) @map("is_checked")
+  position    Float    @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  checklist Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  @@map("checklist_items")
+}
+
+model CardTag {
+  id     String @id @default(uuid())
+  cardId String @map("card_id")
+  tag    String
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, tag])
+  @@map("card_tags")
+}
+
+model CardLink {
+  id           String   @id @default(uuid())
+  sourceCardId String   @map("source_card_id")
+  targetCardId String   @map("target_card_id")
+  linkType     LinkType @map("link_type")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  sourceCard Card @relation("SourceCard", fields: [sourceCardId], references: [id], onDelete: Cascade)
+  targetCard Card @relation("TargetCard", fields: [targetCardId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceCardId, targetCardId, linkType])
+  @@map("card_links")
+}
+
+model Activity {
+  id        String         @id @default(uuid())
+  boardId   String         @map("board_id")
+  cardId    String?        @map("card_id")
+  userId    String         @map("user_id")
+  action    ActivityAction
+  details   Json?
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  card  Card?  @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  user  User   @relation(fields: [userId], references: [id])
+
+  @@index([boardId, createdAt])
+  @@map("activities")
+}
+
+model AutomationRule {
+  id          String   @id @default(uuid())
+  boardId     String   @map("board_id")
+  name        String
+  trigger     Json
+  conditions  Json
+  actions     Json
+  isEnabled   Boolean  @default(true) @map("is_enabled")
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  board     Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  createdBy User  @relation(fields: [createdById], references: [id])
+
+  @@map("automation_rules")
+}

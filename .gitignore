@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+
+# Turbo
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+
+# Prisma
+apps/backend/prisma/generated/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# MinIO data (local dev)
+minio-data/
