@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { type Socket } from 'socket.io-client';
 import apiClient from '@/api/client';
 import { useAttachments } from '@/hooks/useAttachments';
 import { attachmentsApi } from '@/api/attachments';
@@ -9,6 +10,8 @@ import { boardsApi } from '@/api/boards';
 import { useAuthStore } from '@/stores/auth';
 import { customFieldsApi, type CustomFieldDefinition, type CustomFieldValue } from '@/api/custom-fields';
 import { recurringApi, type RecurringConfig } from '@/api/recurring';
+import { reactionsApi, type CommentReaction, EMOJI_MAP, EMOJI_KEYS } from '@/api/reactions';
+import { usePresenceStore } from '@/stores/presence';
 
 const LABEL_PRESET_COLORS = [
   '#ef4444', '#f97316', '#eab308', '#22c55e',
@@ -73,13 +76,23 @@ function toDatetimeLocal(iso: string | null): string {
 export default function CardDetailModal({
   cardId,
   onClose,
+  socket,
+  currentUserId: currentUserIdProp,
 }: {
   cardId: string;
   onClose: () => void;
+  socket?: Socket;
+  currentUserId?: string;
 }) {
   const queryClient = useQueryClient();
   const backdropRef = useRef<HTMLDivElement>(null);
   const currentUser = useAuthStore((s) => s.user);
+  const effectiveUserId = currentUserIdProp ?? currentUser?.id;
+
+  // PR-001: Presence — track who is editing this card
+  const { cardEditors } = usePresenceStore();
+  const editorId = cardEditors[cardId];
+  const isEditedByOther = editorId && editorId !== effectiveUserId;
 
   const { data: card, isLoading } = useQuery<CardDetail>({
     queryKey: ['card', cardId],
@@ -196,6 +209,15 @@ export default function CardDetailModal({
     return () => document.removeEventListener('keydown', handleEsc);
   }, [onClose]);
 
+  // PR-001: Emit startEditingCard when modal opens, stopEditingCard when it closes
+  useEffect(() => {
+    if (!socket || !effectiveUserId) return;
+    socket.emit('startEditingCard', { cardId, userId: effectiveUserId });
+    return () => {
+      socket.emit('stopEditingCard', { cardId, userId: effectiveUserId });
+    };
+  }, [cardId, socket, effectiveUserId]);
+
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === backdropRef.current) onClose();
   };
@@ -225,6 +247,17 @@ export default function CardDetailModal({
       className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-16 overflow-y-auto"
     >
       <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mb-16">
+        {/* PR-001: Editing warning banner */}
+        {isEditedByOther && (
+          <div className="px-6 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
+            <svg className="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <p className="text-sm text-amber-700">
+              This card is being edited by another user
+            </p>
+          </div>
+        )}
         {/* Header */}
         <div className="px-6 pt-5 pb-3 flex items-start justify-between">
           <div className="flex-1 min-w-0">
@@ -349,7 +382,12 @@ export default function CardDetailModal({
                       updateCommentMutation.mutate({ id: comment.id, content })
                     }
                     onDelete={() => deleteCommentMutation.mutate(comment.id)}
-                  />
+                  >
+                    <CommentReactions
+                      commentId={comment.id}
+                      currentUserId={currentUser?.id}
+                    />
+                  </CommentItem>
                 ))}
               </div>
             </div>
@@ -1351,11 +1389,13 @@ function CommentItem({
   currentUserId,
   onUpdate,
   onDelete,
+  children,
 }: {
   comment: { id: string; content: string; createdAt: string; author: { id: string; name: string; avatarUrl: string | null } };
   currentUserId: string | undefined;
   onUpdate: (content: string) => void;
   onDelete: () => void;
+  children?: ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(comment.content);
@@ -1435,6 +1475,124 @@ function CommentItem({
           </div>
         ) : (
           <p className="text-sm text-gray-700 mt-0.5">{comment.content}</p>
+        )}
+        {/* CR-001: Reactions bar */}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CR-001: Comment reactions component
+// ---------------------------------------------------------------------------
+
+function CommentReactions({
+  commentId,
+  currentUserId,
+}: {
+  commentId: string;
+  currentUserId: string | undefined;
+}) {
+  const queryClient = useQueryClient();
+  const [showPicker, setShowPicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  const { data: reactions = [] } = useQuery<CommentReaction[]>({
+    queryKey: ['reactions', commentId],
+    queryFn: () => reactionsApi.getReactions(commentId),
+  });
+
+  const addReactionMutation = useMutation({
+    mutationFn: (emoji: string) => reactionsApi.addReaction(commentId, emoji),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reactions', commentId] });
+    },
+  });
+
+  const removeReactionMutation = useMutation({
+    mutationFn: (emoji: string) => reactionsApi.removeReaction(commentId, emoji),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reactions', commentId] });
+    },
+  });
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowPicker(false);
+      }
+    }
+    if (showPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showPicker]);
+
+  // Group reactions by emoji
+  const grouped = EMOJI_KEYS.reduce<Record<string, { count: number; userReacted: boolean }>>((acc, key) => {
+    const matching = reactions.filter((r) => r.emoji === key);
+    if (matching.length > 0) {
+      acc[key] = {
+        count: matching.length,
+        userReacted: matching.some((r) => r.userId === currentUserId),
+      };
+    }
+    return acc;
+  }, {});
+
+  const handlePillClick = (emojiKey: string, userReacted: boolean) => {
+    if (userReacted) {
+      removeReactionMutation.mutate(emojiKey);
+    } else {
+      addReactionMutation.mutate(emojiKey);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1 flex-wrap mt-1.5">
+      {Object.entries(grouped).map(([key, { count, userReacted }]) => (
+        <button
+          key={key}
+          onClick={() => handlePillClick(key, userReacted)}
+          className={`inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full border transition-colors ${
+            userReacted
+              ? 'bg-blue-100 border-blue-300 text-blue-700'
+              : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <span>{EMOJI_MAP[key]}</span>
+          <span>{count}</span>
+        </button>
+      ))}
+
+      {/* + emoji picker trigger */}
+      <div className="relative" ref={pickerRef}>
+        <button
+          onClick={() => setShowPicker((v) => !v)}
+          className="inline-flex items-center text-xs px-1.5 py-0.5 rounded-full border border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+        >
+          +
+        </button>
+        {showPicker && (
+          <div className="absolute bottom-full left-0 mb-1 z-10 bg-white border border-gray-200 rounded-lg shadow-md p-2">
+            <div className="grid grid-cols-6 gap-1">
+              {EMOJI_KEYS.map((key) => (
+                <button
+                  key={key}
+                  onClick={() => {
+                    const alreadyReacted = grouped[key]?.userReacted ?? false;
+                    handlePillClick(key, alreadyReacted);
+                    setShowPicker(false);
+                  }}
+                  className="w-7 h-7 flex items-center justify-center text-base rounded hover:bg-gray-100 transition-colors"
+                  title={key}
+                >
+                  {EMOJI_MAP[key]}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>

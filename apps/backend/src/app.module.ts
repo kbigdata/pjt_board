@@ -23,6 +23,7 @@ import { TemplateModule } from './modules/template/template.module';
 import { CustomFieldModule } from './modules/custom-field/custom-field.module';
 import { RecurringModule } from './modules/recurring/recurring.module';
 import { ReportModule } from './modules/report/report.module';
+import { SavedFilterModule } from './modules/saved-filter/saved-filter.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { ReportModule } from './modules/report/report.module';
     CustomFieldModule,
     RecurringModule,
     ReportModule,
+    SavedFilterModule,
   ],
 })
 export class AppModule {}

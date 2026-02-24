@@ -92,6 +92,8 @@ model User {
   favorites            BoardFavorite[]
   notificationSettings NotificationSetting[]
   boardTemplates       BoardTemplate[]
+  commentReactions     CommentReaction[]
+  savedFilters         SavedFilter[]
 
   @@map("users")
 }
@@ -150,6 +152,7 @@ model Board {
   customFields    CustomFieldDefinition[]
   columnSnapshots ColumnSnapshot[]
   cardStatusLogs  CardStatusLog[]
+  savedFilters    SavedFilter[]
 
   @@map("boards")
 }
@@ -305,8 +308,9 @@ model Comment {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  card   Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  author User @relation(fields: [authorId], references: [id])
+  card      Card              @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  author    User              @relation(fields: [authorId], references: [id])
+  reactions CommentReaction[]
 
   @@map("comments")
 }
@@ -552,4 +556,33 @@ model CardStatusLog {
   @@index([cardId, movedAt])
   @@index([boardId, movedAt])
   @@map("card_status_logs")
+}
+
+model CommentReaction {
+  id        String   @id @default(uuid())
+  commentId String   @map("comment_id")
+  userId    String   @map("user_id")
+  emoji     String   // e.g., "thumbsup", "heart", "laugh", etc.
+  createdAt DateTime @default(now()) @map("created_at")
+
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId, emoji])
+  @@map("comment_reactions")
+}
+
+model SavedFilter {
+  id        String   @id @default(uuid())
+  boardId   String   @map("board_id")
+  userId    String   @map("user_id")
+  name      String
+  filters   Json     // { priority?: string[], assigneeIds?: string[], labelIds?: string[], keyword?: string, dueDateRange?: { from?: string, to?: string } }
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("saved_filters")
 }

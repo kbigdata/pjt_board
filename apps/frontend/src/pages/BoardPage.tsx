@@ -10,6 +10,7 @@ import {
 } from '@hello-pangea/dnd';
 import { boardsApi, type Card, type Column } from '@/api/boards';
 import { templatesApi, type BoardTemplate } from '@/api/templates';
+import { savedFiltersApi, type SavedFilter } from '@/api/saved-filters';
 import { useSwimlanes } from '@/hooks/useSwimlanes';
 import { type Swimlane } from '@/api/swimlanes';
 import CardDetailModal from '@/components/CardDetailModal';
@@ -21,6 +22,8 @@ import TimelineView from '@/components/TimelineView';
 import KeyboardShortcutHelp from '@/components/KeyboardShortcutHelp';
 import { useBoardSocket } from '@/hooks/useSocket';
 import { useColumnCollapseStore } from '@/stores/columnCollapse';
+import { usePresenceStore } from '@/stores/presence';
+import { useAuthStore } from '@/stores/auth';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -75,14 +78,29 @@ function getDueDateStatus(
 
 // AG-001: Card aging helpers
 function getCardAgingDays(card: Card): number {
-  if (!card.updatedAt) return 0;
-  return Math.floor((Date.now() - new Date(card.updatedAt).getTime()) / (1000 * 60 * 60 * 24));
+  const ref = card.updatedAt ?? card.createdAt;
+  if (!ref) return 0;
+  return Math.floor((Date.now() - new Date(ref).getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function getCardAgingClass(days: number): string {
-  if (days > 14) return 'opacity-50';
-  if (days > 7) return 'opacity-75';
-  return '';
+function getCardAgingStyle(days: number): { className: string; showClock: boolean } {
+  if (days >= 14) {
+    return { className: 'bg-red-50/50 opacity-70', showClock: true };
+  }
+  if (days >= 7) {
+    return { className: 'bg-orange-50/50 opacity-80', showClock: true };
+  }
+  if (days >= 3) {
+    return { className: 'bg-yellow-50/50 opacity-90', showClock: false };
+  }
+  return { className: '', showClock: false };
+}
+
+function formatAgingLabel(days: number): string | null {
+  if (days < 1) return null;
+  if (days < 7) return `Updated ${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  return `Updated ${weeks}w ago`;
 }
 
 // SF-002, SF-005~010: Advanced filter state shape
@@ -123,9 +141,17 @@ export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const queryClient = useQueryClient();
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const currentUser = useAuthStore((s) => s.user);
+
+  // Multi-card select state
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
 
   // Real-time sync
-  useBoardSocket(boardId);
+  const { socket } = useBoardSocket(boardId);
+
+  // Presence store
+  const { onlineUsers, cardEditors } = usePresenceStore();
+  const boardOnlineUserIds = boardId ? (onlineUsers[boardId] ?? []) : [];
 
   const [activityOpen, setActivityOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -168,6 +194,7 @@ export default function BoardPage() {
     onFocusSearch: () => searchInputRef.current?.focus(),
     onCloseModal: () => {
       if (selectedCardId) setSelectedCardId(null);
+      else if (selectedCardIds.size > 0) setSelectedCardIds(new Set());
       else if (activityOpen) setActivityOpen(false);
       else if (archiveOpen) setArchiveOpen(false);
       else if (showFilterPanel) setShowFilterPanel(false);
@@ -353,6 +380,62 @@ export default function BoardPage() {
     },
   });
 
+  // SF-SAVED: Saved filters
+  const [showSavedFilters, setShowSavedFilters] = useState(false);
+  const [saveFilterName, setSaveFilterName] = useState('');
+  const [showSaveFilterInput, setShowSaveFilterInput] = useState(false);
+
+  const { data: savedFilters = [] } = useQuery<SavedFilter[]>({
+    queryKey: ['saved-filters', boardId],
+    queryFn: () => savedFiltersApi.list(boardId!),
+    enabled: !!boardId,
+  });
+
+  const createSavedFilterMutation = useMutation({
+    mutationFn: (data: { name: string; filters: object }) =>
+      savedFiltersApi.create(boardId!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['saved-filters', boardId] });
+      setSaveFilterName('');
+      setShowSaveFilterInput(false);
+    },
+  });
+
+  const deleteSavedFilterMutation = useMutation({
+    mutationFn: (id: string) => savedFiltersApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['saved-filters', boardId] });
+    },
+  });
+
+  const handleApplySavedFilter = (sf: SavedFilter) => {
+    setFilters({
+      searchQuery: sf.filters.keyword ?? '',
+      priorities: new Set(sf.filters.priority ?? []),
+      labelIds: new Set(sf.filters.labelIds ?? []),
+      assigneeIds: new Set(sf.filters.assigneeIds ?? []),
+      dueDateStart: sf.filters.dueDateFrom ?? '',
+      dueDateEnd: sf.filters.dueDateTo ?? '',
+      hasDueDate: false,
+    });
+    setShowSavedFilters(false);
+  };
+
+  const handleSaveCurrentFilter = () => {
+    if (!saveFilterName.trim()) return;
+    createSavedFilterMutation.mutate({
+      name: saveFilterName.trim(),
+      filters: {
+        keyword: filters.searchQuery || undefined,
+        priority: filters.priorities.size > 0 ? Array.from(filters.priorities) : undefined,
+        labelIds: filters.labelIds.size > 0 ? Array.from(filters.labelIds) : undefined,
+        assigneeIds: filters.assigneeIds.size > 0 ? Array.from(filters.assigneeIds) : undefined,
+        dueDateFrom: filters.dueDateStart || undefined,
+        dueDateTo: filters.dueDateEnd || undefined,
+      },
+    });
+  };
+
   // IO-001: Export board
   const handleExportBoard = async () => {
     if (!boardId || !board) return;
@@ -511,6 +594,25 @@ export default function BoardPage() {
       }
     }
 
+    // MS-001: Multi-card select drag
+    if (selectedCardIds.has(draggableId) && selectedCardIds.size > 1) {
+      // Move all selected cards sequentially with incremented positions
+      const selectedArr = Array.from(selectedCardIds);
+      selectedArr.forEach((cid, offset) => {
+        const pos = newPosition + offset * 0.01;
+        moveCardMutation.mutate({
+          cardId: cid,
+          data: {
+            columnId: destColumnId,
+            position: pos,
+            ...(swimlaneMode && destSwimlaneId !== undefined && { swimlaneId: destSwimlaneId }),
+          },
+        });
+      });
+      setSelectedCardIds(new Set());
+      return;
+    }
+
     moveCardMutation.mutate({
       cardId: draggableId,
       data: {
@@ -545,6 +647,36 @@ export default function BoardPage() {
             &larr; Back
           </Link>
           <h2 className="text-lg font-semibold text-gray-900">{board?.title}</h2>
+          {/* PR-001: Online presence avatars */}
+          {boardOnlineUserIds.length > 0 && (
+            <div className="flex items-center gap-1">
+              {boardOnlineUserIds.slice(0, 5).map((uid) => {
+                const memberInfo = board?.members?.find((m) => m.userId === uid)?.user;
+                const initials = memberInfo?.name?.charAt(0).toUpperCase() ?? '?';
+                return (
+                  <div
+                    key={uid}
+                    className="relative"
+                    title={memberInfo?.name ?? uid}
+                  >
+                    <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium ring-2 ring-white">
+                      {initials}
+                    </div>
+                    <span className="absolute bottom-0 right-0 w-2 h-2 bg-green-400 rounded-full ring-1 ring-white" />
+                  </div>
+                );
+              })}
+              {boardOnlineUserIds.length > 5 && (
+                <span className="text-xs text-gray-400 ml-1">+{boardOnlineUserIds.length - 5}</span>
+              )}
+            </div>
+          )}
+          {/* MS-001: Selected cards count badge */}
+          {selectedCardIds.size > 0 && (
+            <span className="text-xs bg-blue-600 text-white rounded-full px-2 py-0.5">
+              {selectedCardIds.size} selected
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* VW-002: View toggle */}
@@ -724,6 +856,82 @@ export default function BoardPage() {
             Clear all
           </button>
         )}
+
+        {/* SF-SAVED: Saved filters controls */}
+        <div className="relative">
+          <button
+            onClick={() => setShowSavedFilters((v) => !v)}
+            className={`text-sm px-3 py-1.5 rounded border transition-colors ${
+              showSavedFilters
+                ? 'bg-blue-50 border-blue-300 text-blue-700'
+                : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            Saved Filters {savedFilters.length > 0 && `(${savedFilters.length})`}
+          </button>
+          {showSavedFilters && (
+            <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg w-56">
+              {savedFilters.length === 0 ? (
+                <p className="text-xs text-gray-400 px-3 py-2 text-center">No saved filters.</p>
+              ) : (
+                <div className="py-1 max-h-48 overflow-y-auto">
+                  {savedFilters.map((sf) => (
+                    <div
+                      key={sf.id}
+                      className="flex items-center justify-between px-3 py-1.5 hover:bg-gray-50 group"
+                    >
+                      <button
+                        onClick={() => handleApplySavedFilter(sf)}
+                        className="flex-1 text-left text-sm text-gray-700 truncate"
+                      >
+                        {sf.name}
+                      </button>
+                      <button
+                        onClick={() => deleteSavedFilterMutation.mutate(sf.id)}
+                        className="text-gray-300 hover:text-red-500 ml-2 opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                        title="Delete saved filter"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="border-t border-gray-100 p-2">
+                {showSaveFilterInput ? (
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      value={saveFilterName}
+                      onChange={(e) => setSaveFilterName(e.target.value)}
+                      placeholder="Filter name..."
+                      className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveCurrentFilter();
+                        if (e.key === 'Escape') setShowSaveFilterInput(false);
+                      }}
+                    />
+                    <button
+                      onClick={handleSaveCurrentFilter}
+                      disabled={createSavedFilterMutation.isPending || !saveFilterName.trim()}
+                      className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowSaveFilterInput(true)}
+                    className="w-full text-xs text-center py-1 text-blue-600 hover:text-blue-800"
+                  >
+                    + Save current filter
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* SF-002: Advanced filter panel */}
@@ -737,7 +945,16 @@ export default function BoardPage() {
       )}
 
       {/* Board content */}
-      <div ref={boardScrollRef} className="flex-1 overflow-auto p-4">
+      <div
+        ref={boardScrollRef}
+        className="flex-1 overflow-auto p-4"
+        onClick={(e) => {
+          // MS-001: Clear selection when clicking on the board background
+          if (e.target === boardScrollRef.current && selectedCardIds.size > 0) {
+            setSelectedCardIds(new Set());
+          }
+        }}
+      >
         {/* VW-002: Calendar view */}
         {viewMode === 'calendar' && cards && (
           <CalendarView
@@ -841,6 +1058,18 @@ export default function BoardPage() {
                                     ? (fn) => { firstColumnAddCardRef.current = fn; }
                                     : undefined
                                 }
+                                selectedCardIds={selectedCardIds}
+                                onToggleSelectCard={(cardId) => {
+                                  setSelectedCardIds((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(cardId)) next.delete(cardId);
+                                    else next.add(cardId);
+                                    return next;
+                                  });
+                                }}
+                                cardEditors={cardEditors}
+                                boardMembers={board?.members ?? []}
+                                currentUserId={currentUser?.id}
                               />
                             )}
                           </div>
@@ -861,7 +1090,12 @@ export default function BoardPage() {
       {showHelp && <KeyboardShortcutHelp onClose={() => setShowHelp(false)} />}
 
       {selectedCardId && (
-        <CardDetailModal cardId={selectedCardId} onClose={() => setSelectedCardId(null)} />
+        <CardDetailModal
+          cardId={selectedCardId}
+          onClose={() => setSelectedCardId(null)}
+          socket={socket}
+          currentUserId={currentUser?.id}
+        />
       )}
 
       {boardId && (
@@ -1558,6 +1792,11 @@ function KanbanColumn({
   onDelete,
   onUpdateColumn,
   onRegisterAddCard,
+  selectedCardIds,
+  onToggleSelectCard,
+  cardEditors,
+  boardMembers,
+  currentUserId,
 }: {
   column: Column;
   cards: Card[];
@@ -1570,6 +1809,11 @@ function KanbanColumn({
   onDelete: () => void;
   onUpdateColumn: (data: { title?: string; color?: string | null; wipLimit?: number | null; description?: string | null }) => void;
   onRegisterAddCard?: (fn: () => void) => void;
+  selectedCardIds: Set<string>;
+  onToggleSelectCard: (cardId: string) => void;
+  cardEditors: Record<string, string>;
+  boardMembers: Array<{ userId: string; user: { id: string; name: string; avatarUrl: string | null } }>;
+  currentUserId: string | undefined;
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState('');
@@ -1682,7 +1926,17 @@ function KanbanColumn({
             {cards.map((card, index) => {
               // AG-001: Card aging
               const agingDays = getCardAgingDays(card);
-              const agingClass = getCardAgingClass(agingDays);
+              const { className: agingClass, showClock } = getCardAgingStyle(agingDays);
+              const agingLabel = formatAgingLabel(agingDays);
+
+              // PR-001: Card editing presence
+              const editorId = cardEditors[card.id];
+              const isEditedByOther = editorId && editorId !== currentUserId;
+              const editorMember = boardMembers.find((m) => m.userId === editorId);
+              const editorName = editorMember?.user.name ?? editorId;
+
+              // MS-001: Selected state
+              const isSelected = selectedCardIds.has(card.id);
 
               return (
               <Draggable key={card.id} draggableId={card.id} index={index}>
@@ -1691,14 +1945,42 @@ function KanbanColumn({
                     ref={provided.innerRef}
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
-                    onClick={() => onCardClick(card.id)}
-                    className={`bg-white rounded-lg shadow-sm border p-3 mb-2 cursor-grab ${snapshot.isDragging ? 'shadow-lg rotate-2' : 'hover:shadow-md'} ${agingClass}`}
+                    onClick={(e) => {
+                      if (isEditedByOther) return;
+                      if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        onToggleSelectCard(card.id);
+                      } else {
+                        onCardClick(card.id);
+                      }
+                    }}
+                    className={`bg-white rounded-lg shadow-sm border p-3 mb-2 cursor-grab
+                      ${snapshot.isDragging ? 'shadow-lg rotate-2' : 'hover:shadow-md'}
+                      ${agingClass}
+                      ${isSelected ? 'ring-2 ring-blue-500' : ''}
+                      ${isEditedByOther ? 'cursor-not-allowed border-amber-400 ring-1 ring-amber-300' : ''}
+                    `}
                   >
+                    {/* PR-001: Editing indicator */}
+                    {isEditedByOther && (
+                      <div className="flex items-center gap-1 mb-1.5">
+                        <div className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-medium">
+                          {editorName?.charAt(0).toUpperCase() ?? '?'}
+                        </div>
+                        <span className="text-xs text-amber-600">Editing: {editorName}</span>
+                      </div>
+                    )}
                     <div className="flex items-start gap-2">
                       <div
-                        className={`w-1 h-full min-h-[1rem] rounded-full ${PRIORITY_COLORS[card.priority] ?? 'bg-gray-300'}`}
+                        className={`w-1 h-full min-h-[1rem] rounded-full flex-shrink-0 ${PRIORITY_COLORS[card.priority] ?? 'bg-gray-300'}`}
                       />
                       <div className="flex-1 min-w-0">
+                        {/* MS-001: Selected badge overlay on title */}
+                        {isSelected && snapshot.isDragging && selectedCardIds.size > 1 && (
+                          <span className="inline-block mb-1 text-xs bg-blue-600 text-white rounded px-1.5 py-0.5">
+                            {selectedCardIds.size} cards
+                          </span>
+                        )}
                         <p className="text-sm font-medium text-gray-900 leading-snug">
                           {card.title}
                         </p>
@@ -1706,10 +1988,17 @@ function KanbanColumn({
                           <span className="text-xs text-gray-400">
                             KF-{String(card.cardNumber).padStart(3, '0')}
                           </span>
-                          {/* AG-001: Idle badge */}
-                          {agingDays > 3 && (
-                            <span className="text-xs text-gray-300" title={`Last updated ${agingDays} days ago`}>
-                              {agingDays}d idle
+                          {/* AG-001: Clock icon for stale cards */}
+                          {showClock && (
+                            <span title={`${agingDays} days since last update`}>
+                              <svg
+                                className="w-3 h-3 text-gray-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
                             </span>
                           )}
                           {card.labels?.map((cl) => (
@@ -1815,6 +2104,10 @@ function KanbanColumn({
                               )}
                             </div>
                           )}
+                        {/* AG-001: Aging footer label */}
+                        {agingLabel && (
+                          <p className="text-xs text-gray-300 mt-1.5">{agingLabel}</p>
+                        )}
                       </div>
                     </div>
                   </div>

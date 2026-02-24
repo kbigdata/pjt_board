@@ -16,6 +16,14 @@ describe('CommentService', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
   };
+  const mockReaction = {
+    id: 'reaction-1',
+    commentId: 'comment-1',
+    userId: 'user-1',
+    emoji: 'thumbsup',
+    createdAt: new Date(),
+    user: { id: 'user-1', name: 'Alice', avatarUrl: null },
+  };
 
   beforeEach(async () => {
     prisma = {
@@ -25,6 +33,12 @@ describe('CommentService', () => {
         findUnique: jest.fn(),
         findMany: jest.fn(),
         update: jest.fn(),
+        delete: jest.fn(),
+      },
+      commentReaction: {
+        upsert: jest.fn(),
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
         delete: jest.fn(),
       },
     };
@@ -129,6 +143,92 @@ describe('CommentService', () => {
       prisma.comment.findUnique.mockResolvedValue(null);
 
       expect(await service.getCardId('non-existent')).toBeNull();
+    });
+  });
+
+  describe('addReaction', () => {
+    it('should upsert and return reaction', async () => {
+      prisma.comment.findUnique.mockResolvedValue(mockComment);
+      prisma.commentReaction.upsert.mockResolvedValue(mockReaction);
+
+      const result = await service.addReaction('comment-1', 'user-1', 'thumbsup');
+
+      expect(prisma.commentReaction.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            commentId_userId_emoji: { commentId: 'comment-1', userId: 'user-1', emoji: 'thumbsup' },
+          },
+          create: { commentId: 'comment-1', userId: 'user-1', emoji: 'thumbsup' },
+          update: {},
+        }),
+      );
+      expect(result.emoji).toBe('thumbsup');
+    });
+
+    it('should throw NotFoundException when comment does not exist', async () => {
+      prisma.comment.findUnique.mockResolvedValue(null);
+
+      await expect(service.addReaction('non-existent', 'user-1', 'thumbsup')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('removeReaction', () => {
+    it('should delete reaction', async () => {
+      prisma.commentReaction.findUnique.mockResolvedValue(mockReaction);
+      prisma.commentReaction.delete.mockResolvedValue(mockReaction);
+
+      await service.removeReaction('comment-1', 'user-1', 'thumbsup');
+
+      expect(prisma.commentReaction.delete).toHaveBeenCalledWith({
+        where: {
+          commentId_userId_emoji: { commentId: 'comment-1', userId: 'user-1', emoji: 'thumbsup' },
+        },
+      });
+    });
+
+    it('should throw NotFoundException when reaction does not exist', async () => {
+      prisma.commentReaction.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.removeReaction('comment-1', 'user-1', 'thumbsup'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getReactions', () => {
+    it('should return reactions grouped by emoji', async () => {
+      prisma.comment.findUnique.mockResolvedValue(mockComment);
+      prisma.commentReaction.findMany.mockResolvedValue([
+        { ...mockReaction, emoji: 'thumbsup', user: { id: 'user-1', name: 'Alice', avatarUrl: null } },
+        { ...mockReaction, id: 'reaction-2', userId: 'user-2', emoji: 'thumbsup', user: { id: 'user-2', name: 'Bob', avatarUrl: null } },
+        { ...mockReaction, id: 'reaction-3', userId: 'user-1', emoji: 'heart', user: { id: 'user-1', name: 'Alice', avatarUrl: null } },
+      ]);
+
+      const result = await service.getReactions('comment-1');
+
+      expect(result).toHaveLength(2);
+      const thumbsup = result.find((r) => r.emoji === 'thumbsup');
+      const heart = result.find((r) => r.emoji === 'heart');
+      expect(thumbsup?.count).toBe(2);
+      expect(thumbsup?.users).toHaveLength(2);
+      expect(heart?.count).toBe(1);
+    });
+
+    it('should throw NotFoundException when comment does not exist', async () => {
+      prisma.comment.findUnique.mockResolvedValue(null);
+
+      await expect(service.getReactions('non-existent')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should return empty array when no reactions', async () => {
+      prisma.comment.findUnique.mockResolvedValue(mockComment);
+      prisma.commentReaction.findMany.mockResolvedValue([]);
+
+      const result = await service.getReactions('comment-1');
+
+      expect(result).toHaveLength(0);
     });
   });
 });

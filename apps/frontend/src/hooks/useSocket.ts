@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useQueryClient } from '@tanstack/react-query';
+import { usePresenceStore } from '@/stores/presence';
 
 let socket: Socket | null = null;
 
@@ -67,6 +68,7 @@ export function useUserSocket(userId: string | undefined) {
 export function useBoardSocket(boardId: string | undefined) {
   const socket = useSocket();
   const queryClient = useQueryClient();
+  const { setOnlineUsers, setCardEditor, clearBoard } = usePresenceStore();
 
   const joinBoard = useCallback(() => {
     if (boardId && socket.connected) {
@@ -104,6 +106,21 @@ export function useBoardSocket(boardId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ['swimlanes', boardId] });
     };
 
+    // PR-001: Presence events
+    const handlePresenceUpdate = (data: { boardId: string; userIds: string[] }) => {
+      if (data.boardId === boardId) {
+        setOnlineUsers(boardId, data.userIds);
+      }
+    };
+
+    const handleCardEditingStarted = (data: { cardId: string; userId: string }) => {
+      setCardEditor(data.cardId, data.userId);
+    };
+
+    const handleCardEditingStopped = (data: { cardId: string }) => {
+      setCardEditor(data.cardId, null);
+    };
+
     socket.on('cardCreated', invalidateCards);
     socket.on('cardUpdated', invalidateCards);
     socket.on('cardMoved', invalidateCards);
@@ -116,6 +133,9 @@ export function useBoardSocket(boardId: string | undefined) {
     socket.on('swimlaneMoved', invalidateSwimlanes);
     socket.on('attachmentAdded', invalidateCards);
     socket.on('attachmentRemoved', invalidateCards);
+    socket.on('presenceUpdate', handlePresenceUpdate);
+    socket.on('cardEditingStarted', handleCardEditingStarted);
+    socket.on('cardEditingStopped', handleCardEditingStopped);
 
     return () => {
       socket.emit('leaveBoard', { boardId });
@@ -132,8 +152,12 @@ export function useBoardSocket(boardId: string | undefined) {
       socket.off('swimlaneMoved', invalidateSwimlanes);
       socket.off('attachmentAdded', invalidateCards);
       socket.off('attachmentRemoved', invalidateCards);
+      socket.off('presenceUpdate', handlePresenceUpdate);
+      socket.off('cardEditingStarted', handleCardEditingStarted);
+      socket.off('cardEditingStopped', handleCardEditingStopped);
+      clearBoard(boardId);
     };
-  }, [boardId, socket, queryClient]);
+  }, [boardId, socket, queryClient, setOnlineUsers, setCardEditor, clearBoard]);
 
   return { socket, joinBoard, leaveBoard };
 }

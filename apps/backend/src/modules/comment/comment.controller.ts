@@ -24,6 +24,7 @@ import { CardService } from '../card/card.service';
 import { BoardService } from '../board/board.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
+import { AddReactionDto } from './dto/add-reaction.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
@@ -99,7 +100,55 @@ export class CommentController {
     return { message: 'Comment deleted successfully' };
   }
 
-  private async requireCardBoardAccess(cardId: string, userId: string) {
+  // ---------------------------------------------------------------------------
+  // Reactions
+  // ---------------------------------------------------------------------------
+
+  @Post('comments/:id/reactions')
+  @ApiOperation({ summary: 'Add reaction to comment' })
+  @ApiParam({ name: 'id', description: 'Comment ID' })
+  @ApiResponse({ status: 201, description: 'Reaction added' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Comment not found' })
+  async addReaction(
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+    @Body() dto: AddReactionDto,
+  ) {
+    return this.commentService.addReaction(id, user.id, dto.emoji);
+  }
+
+  @Delete('comments/:id/reactions/:emoji')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove reaction from comment' })
+  @ApiParam({ name: 'id', description: 'Comment ID' })
+  @ApiParam({ name: 'emoji', description: 'Emoji identifier' })
+  @ApiResponse({ status: 200, description: 'Reaction removed' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Reaction not found' })
+  async removeReaction(
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+    @Param('emoji') emoji: string,
+  ) {
+    await this.commentService.removeReaction(id, user.id, emoji);
+    return { message: 'Reaction removed successfully' };
+  }
+
+  @Get('comments/:id/reactions')
+  @ApiOperation({ summary: 'Get reactions for comment grouped by emoji' })
+  @ApiParam({ name: 'id', description: 'Comment ID' })
+  @ApiResponse({ status: 200, description: 'Reactions grouped by emoji' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Comment not found' })
+  async getReactions(
+    @CurrentUser() _user: { id: string },
+    @Param('id') id: string,
+  ) {
+    return this.commentService.getReactions(id);
+  }
+
+  private async requireCardBoardAccess(cardId: string, userId: string): Promise<Role> {
     const boardId = await this.cardService.getBoardId(cardId);
     if (!boardId) throw new ForbiddenException('Card not found');
     const role = await this.boardService.getMemberRole(boardId, userId);

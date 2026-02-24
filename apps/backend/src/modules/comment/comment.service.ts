@@ -80,4 +80,71 @@ export class CommentService {
     });
     return comment?.cardId ?? null;
   }
+
+  // ---------------------------------------------------------------------------
+  // Reactions
+  // ---------------------------------------------------------------------------
+
+  async addReaction(commentId: string, userId: string, emoji: string) {
+    const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    return this.prisma.commentReaction.upsert({
+      where: {
+        commentId_userId_emoji: { commentId, userId, emoji },
+      },
+      create: { commentId, userId, emoji },
+      update: {},
+      include: {
+        user: { select: { id: true, name: true, avatarUrl: true } },
+      },
+    });
+  }
+
+  async removeReaction(commentId: string, userId: string, emoji: string) {
+    const reaction = await this.prisma.commentReaction.findUnique({
+      where: {
+        commentId_userId_emoji: { commentId, userId, emoji },
+      },
+    });
+
+    if (!reaction) {
+      throw new NotFoundException('Reaction not found');
+    }
+
+    await this.prisma.commentReaction.delete({
+      where: {
+        commentId_userId_emoji: { commentId, userId, emoji },
+      },
+    });
+  }
+
+  async getReactions(commentId: string) {
+    const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    const reactions = await this.prisma.commentReaction.findMany({
+      where: { commentId },
+      include: {
+        user: { select: { id: true, name: true, avatarUrl: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Group by emoji
+    const grouped: Record<string, { emoji: string; count: number; users: { id: string; name: string; avatarUrl: string | null }[] }> = {};
+    for (const reaction of reactions) {
+      if (!grouped[reaction.emoji]) {
+        grouped[reaction.emoji] = { emoji: reaction.emoji, count: 0, users: [] };
+      }
+      grouped[reaction.emoji].count += 1;
+      grouped[reaction.emoji].users.push(reaction.user);
+    }
+
+    return Object.values(grouped);
+  }
 }

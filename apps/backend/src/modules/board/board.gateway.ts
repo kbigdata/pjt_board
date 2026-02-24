@@ -33,6 +33,12 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private readonly logger = new Logger(BoardGateway.name);
 
+  /** boardId → Set of userId (online users per board) */
+  private boardUsers: Map<string, Set<string>> = new Map();
+
+  /** cardId → userId (who is currently editing the card) */
+  private cardEditors: Map<string, string> = new Map();
+
   constructor(
     private readonly jwtService: JwtService,
     private readonly activityService: ActivityService,
@@ -65,6 +71,35 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   handleDisconnect(client: AuthSocket) {
     this.logger.log(`Client disconnected: ${client.id}`);
+
+    if (!client.userId) return;
+
+    // Remove user from all board presence maps and clean up card editing locks
+    for (const [boardId, users] of this.boardUsers.entries()) {
+      if (users.has(client.userId)) {
+        users.delete(client.userId);
+        if (users.size === 0) {
+          this.boardUsers.delete(boardId);
+        }
+        this.emitPresenceUpdate(boardId);
+      }
+    }
+
+    // Remove any card editing locks held by this user
+    for (const [cardId, editorId] of this.cardEditors.entries()) {
+      if (editorId === client.userId) {
+        this.cardEditors.delete(cardId);
+        // We don't know which board this card belongs to here, so we broadcast
+        // to all rooms the client was in
+        client.rooms.forEach((room) => {
+          if (room.startsWith('board:')) {
+            const boardId = room.replace('board:', '');
+            this.server.to(room).emit('cardEditingStopped', { cardId });
+            this.emitPresenceUpdate(boardId);
+          }
+        });
+      }
+    }
   }
 
   @SubscribeMessage('joinBoard')
@@ -72,11 +107,18 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: AuthSocket,
     @MessageBody() data: { boardId: string },
   ) {
-    client.join(`board:${data.boardId}`);
-    client.to(`board:${data.boardId}`).emit('userJoined', {
-      userId: client.userId,
-    });
-    this.logger.log(`User ${client.userId} joined board ${data.boardId}`);
+    const { boardId } = data;
+    client.join(`board:${boardId}`);
+    client.to(`board:${boardId}`).emit('userJoined', { userId: client.userId });
+    this.logger.log(`User ${client.userId} joined board ${boardId}`);
+
+    if (client.userId) {
+      if (!this.boardUsers.has(boardId)) {
+        this.boardUsers.set(boardId, new Set());
+      }
+      this.boardUsers.get(boardId)!.add(client.userId);
+      this.emitPresenceUpdate(boardId);
+    }
   }
 
   @SubscribeMessage('leaveBoard')
@@ -84,10 +126,29 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: AuthSocket,
     @MessageBody() data: { boardId: string },
   ) {
-    client.leave(`board:${data.boardId}`);
-    client.to(`board:${data.boardId}`).emit('userLeft', {
-      userId: client.userId,
-    });
+    const { boardId } = data;
+    client.leave(`board:${boardId}`);
+    client.to(`board:${boardId}`).emit('userLeft', { userId: client.userId });
+
+    if (client.userId) {
+      const users = this.boardUsers.get(boardId);
+      if (users) {
+        users.delete(client.userId);
+        if (users.size === 0) {
+          this.boardUsers.delete(boardId);
+        }
+      }
+
+      // Clean up card editing locks for this user on this board
+      for (const [cardId, editorId] of this.cardEditors.entries()) {
+        if (editorId === client.userId) {
+          this.cardEditors.delete(cardId);
+          this.server.to(`board:${boardId}`).emit('cardEditingStopped', { cardId });
+        }
+      }
+
+      this.emitPresenceUpdate(boardId);
+    }
   }
 
   @SubscribeMessage('joinUser')
@@ -99,6 +160,54 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.join(`user:${data.userId}`);
       this.logger.log(`User ${client.userId} joined personal room`);
     }
+  }
+
+  @SubscribeMessage('startEditingCard')
+  handleStartEditingCard(
+    @ConnectedSocket() client: AuthSocket,
+    @MessageBody() data: { boardId: string; cardId: string },
+  ) {
+    const { boardId, cardId } = data;
+    if (client.userId) {
+      this.cardEditors.set(cardId, client.userId);
+      this.server.to(`board:${boardId}`).emit('cardEditingStarted', {
+        cardId,
+        userId: client.userId,
+      });
+    }
+  }
+
+  @SubscribeMessage('stopEditingCard')
+  handleStopEditingCard(
+    @ConnectedSocket() client: AuthSocket,
+    @MessageBody() data: { boardId: string; cardId: string },
+  ) {
+    const { boardId, cardId } = data;
+    if (client.userId && this.cardEditors.get(cardId) === client.userId) {
+      this.cardEditors.delete(cardId);
+      this.server.to(`board:${boardId}`).emit('cardEditingStopped', { cardId });
+    }
+  }
+
+  @SubscribeMessage('getPresence')
+  handleGetPresence(
+    @ConnectedSocket() client: AuthSocket,
+    @MessageBody() data: { boardId: string },
+  ) {
+    const { boardId } = data;
+    const onlineUsers = this.getOnlineUsers(boardId);
+    client.emit('presenceUpdate', { boardId, userIds: onlineUsers });
+  }
+
+  // --- Presence helpers ---
+
+  getOnlineUsers(boardId: string): string[] {
+    return Array.from(this.boardUsers.get(boardId) ?? []);
+  }
+
+  emitPresenceUpdate(boardId: string): void {
+    const userIds = this.getOnlineUsers(boardId);
+    this.server.to(`board:${boardId}`).emit('presenceUpdate', { boardId, userIds });
   }
 
   // --- Notification helpers ---
