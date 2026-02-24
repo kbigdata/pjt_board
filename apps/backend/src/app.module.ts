@@ -7,6 +7,9 @@ import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { BoardModule } from './modules/board/board.module';
 import { ColumnModule } from './modules/column/column.module';
 import { CardModule } from './modules/card/card.module';
+import { CommentModule } from './modules/comment/comment.module';
+import { LabelModule } from './modules/label/label.module';
+import { ChecklistModule } from './modules/checklist/checklist.module';
 
 @Module({
   imports: [
@@ -20,6 +23,9 @@ import { CardModule } from './modules/card/card.module';
     BoardModule,
     ColumnModule,
     CardModule,
+    CommentModule,
+    LabelModule,
+    ChecklistModule,
   ],
 })
 export class AppModule {}
