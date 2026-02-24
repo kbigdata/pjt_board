@@ -5,6 +5,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { BoardModule } from './modules/board/board.module';
+import { ColumnModule } from './modules/column/column.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { BoardModule } from './modules/board/board.module';
     UserModule,
     WorkspaceModule,
     BoardModule,
+    ColumnModule,
   ],
 })
 export class AppModule {}
