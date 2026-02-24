@@ -26,14 +26,29 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 const PRIORITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
-function getDueDateStatus(dueDate: string | null): { label: string; className: string } | null {
+function getDueDateStatus(
+  dueDate: string | null,
+  columnType?: string,
+): { label: string; className: string } | null {
   if (!dueDate) return null;
+
+  // Card in a DONE column: always green
+  if (columnType === 'DONE') {
+    const due = new Date(dueDate);
+    return {
+      label: due.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
+      className: 'bg-green-100 text-green-700',
+    };
+  }
+
   const now = new Date();
   const due = new Date(dueDate);
   const diffMs = due.getTime() - now.getTime();
+  const diffHours = diffMs / (1000 * 60 * 60);
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays < 0) return { label: 'Overdue', className: 'bg-red-100 text-red-700' };
+  if (diffMs < 0) return { label: 'Overdue', className: 'bg-red-100 text-red-700' };
+  if (diffHours <= 24) return { label: 'Due soon', className: 'bg-amber-100 text-amber-700' };
   if (diffDays === 0) return { label: 'Due today', className: 'bg-orange-100 text-orange-700' };
   if (diffDays <= 3) return { label: `D-${diffDays}`, className: 'bg-yellow-100 text-yellow-700' };
   return {
@@ -1078,7 +1093,7 @@ function KanbanColumn({
                             </span>
                           ))}
                           {(() => {
-                            const status = getDueDateStatus(card.dueDate);
+                            const status = getDueDateStatus(card.dueDate, column.columnType);
                             if (!status) return null;
                             return (
                               <span className={`text-xs px-1.5 py-0.5 rounded ${status.className}`}>

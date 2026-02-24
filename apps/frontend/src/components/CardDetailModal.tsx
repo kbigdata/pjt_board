@@ -3,6 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/api/client';
 import { useAttachments } from '@/hooks/useAttachments';
 import { attachmentsApi } from '@/api/attachments';
+import { cardLinksApi, type CardLink } from '@/api/card-links';
+import { commentsApi } from '@/api/comments';
+import { boardsApi } from '@/api/boards';
+import { useAuthStore } from '@/stores/auth';
 
 interface CardDetail {
   id: string;
@@ -16,7 +20,8 @@ interface CardDetail {
   startDate: string | null;
   dueDate: string | null;
   estimatedHours: number | null;
-  column: { id: string; title: string };
+  actualHours: number | null;
+  column: { id: string; title: string; columnType: string };
   swimlane?: { id: string; title: string } | null;
   createdBy: { id: string; name: string; avatarUrl: string | null };
   assignees: Array<{ user: { id: string; name: string; email: string; avatarUrl: string | null } }>;
@@ -37,6 +42,27 @@ interface CardDetail {
 
 const PRIORITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
+const LINK_TYPES = ['BLOCKS', 'BLOCKED_BY', 'RELATES_TO', 'DUPLICATES'] as const;
+
+/** Returns the due-date CSS class based on urgency and column type. */
+function getDueDateClass(dueDate: string | null, columnType: string): string {
+  if (!dueDate) return 'text-gray-500';
+  if (columnType === 'DONE') return 'text-green-600';
+  const now = new Date();
+  const due = new Date(dueDate);
+  const diffMs = due.getTime() - now.getTime();
+  if (diffMs < 0) return 'text-red-600 font-semibold';
+  if (diffMs < 24 * 60 * 60 * 1000) return 'text-amber-600 font-semibold';
+  return 'text-gray-600';
+}
+
+/** Formats a UTC date string for a datetime-local input value. */
+function toDatetimeLocal(iso: string | null): string {
+  if (!iso) return '';
+  // Trim to "YYYY-MM-DDTHH:MM"
+  return iso.slice(0, 16);
+}
+
 export default function CardDetailModal({
   cardId,
   onClose,
@@ -46,6 +72,7 @@ export default function CardDetailModal({
 }) {
   const queryClient = useQueryClient();
   const backdropRef = useRef<HTMLDivElement>(null);
+  const currentUser = useAuthStore((s) => s.user);
 
   const { data: card, isLoading } = useQuery<CardDetail>({
     queryKey: ['card', cardId],
@@ -69,11 +96,72 @@ export default function CardDetailModal({
     },
   });
 
+  const updateCommentMutation = useMutation({
+    mutationFn: ({ id, content }: { id: string; content: string }) =>
+      commentsApi.update(id, content),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['card', cardId] });
+    },
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: (id: string) => commentsApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['card', cardId] });
+    },
+  });
+
   const toggleItemMutation = useMutation({
     mutationFn: (itemId: string) =>
       apiClient.patch(`/checklist-items/${itemId}/toggle`).then((r) => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['card', cardId] });
+    },
+  });
+
+  const addTagMutation = useMutation({
+    mutationFn: (tag: string) =>
+      apiClient.post(`/cards/${cardId}/tags`, { tag }).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['card', cardId] });
+    },
+  });
+
+  const removeTagMutation = useMutation({
+    mutationFn: (tag: string) =>
+      apiClient.delete(`/cards/${cardId}/tags/${encodeURIComponent(tag)}`).then((r) => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['card', cardId] });
+    },
+  });
+
+  const addLinkMutation = useMutation({
+    mutationFn: (data: { targetCardId: string; linkType: string }) =>
+      cardLinksApi.create(cardId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['card-links', cardId] });
+    },
+  });
+
+  const deleteLinkMutation = useMutation({
+    mutationFn: (linkId: string) => cardLinksApi.delete(linkId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['card-links', cardId] });
+    },
+  });
+
+  const copyCardMutation = useMutation({
+    mutationFn: () => boardsApi.copyCard(cardId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cards', card?.boardId] });
+    },
+  });
+
+  const deleteCardMutation = useMutation({
+    mutationFn: () => boardsApi.deleteCard(cardId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cards', card?.boardId] });
+      onClose();
     },
   });
 
@@ -104,6 +192,8 @@ export default function CardDetailModal({
   }
 
   if (!card) return null;
+
+  const columnType = card.column?.columnType ?? '';
 
   return (
     <div
@@ -158,12 +248,37 @@ export default function CardDetailModal({
               onSave={(description) => updateMutation.mutate({ description })}
             />
 
+            {/* Tags section */}
+            <TagsSection
+              tags={card.tags}
+              onAdd={(tag) => addTagMutation.mutate(tag)}
+              onRemove={(tag) => removeTagMutation.mutate(tag)}
+            />
+
+            {/* Links section */}
+            <LinksSection
+              cardId={cardId}
+              onAddLink={(data) => addLinkMutation.mutate(data)}
+              onDeleteLink={(id) => deleteLinkMutation.mutate(id)}
+            />
+
             {/* Checklists */}
             {card.checklists.map((cl) => (
               <div key={cl.id}>
                 <h4 className="text-sm font-medium text-gray-700 mb-2">{cl.title}</h4>
                 {cl.items.length > 0 && (
-                  <div className="mb-1">
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-500">
+                        {cl.items.filter((i) => i.isChecked).length}/{cl.items.length} completed
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {Math.round(
+                          (cl.items.filter((i) => i.isChecked).length / cl.items.length) * 100,
+                        )}
+                        %
+                      </span>
+                    </div>
                     <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-green-500 transition-all"
@@ -206,22 +321,15 @@ export default function CardDetailModal({
               <CommentInput onSubmit={(c) => addCommentMutation.mutate(c)} />
               <div className="space-y-3 mt-3">
                 {card.comments.map((comment) => (
-                  <div key={comment.id} className="flex gap-2">
-                    <div className="w-7 h-7 rounded-full bg-gray-400 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
-                      {comment.author.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-900">
-                          {comment.author.name}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          {new Date(comment.createdAt).toLocaleDateString('ko-KR')}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-700 mt-0.5">{comment.content}</p>
-                    </div>
-                  </div>
+                  <CommentItem
+                    key={comment.id}
+                    comment={comment}
+                    currentUserId={currentUser?.id}
+                    onUpdate={(content) =>
+                      updateCommentMutation.mutate({ id: comment.id, content })
+                    }
+                    onDelete={() => deleteCommentMutation.mutate(comment.id)}
+                  />
                 ))}
               </div>
             </div>
@@ -238,7 +346,9 @@ export default function CardDetailModal({
                 className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>{p}</option>
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
                 ))}
               </select>
             </div>
@@ -262,22 +372,120 @@ export default function CardDetailModal({
               )}
             </div>
 
-            {/* Dates */}
-            {(card.startDate || card.dueDate) && (
-              <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">Dates</h4>
-                {card.startDate && (
-                  <p className="text-xs text-gray-600">
-                    Start: {new Date(card.startDate).toLocaleDateString('ko-KR')}
-                  </p>
-                )}
-                {card.dueDate && (
-                  <p className="text-xs text-gray-600">
-                    Due: {new Date(card.dueDate).toLocaleDateString('ko-KR')}
-                  </p>
-                )}
+            {/* Dates - datetime-local inputs */}
+            <div>
+              <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">Dates</h4>
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-0.5">Start date</label>
+                  <input
+                    type="datetime-local"
+                    defaultValue={toDatetimeLocal(card.startDate)}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      updateMutation.mutate({ startDate: val ? new Date(val).toISOString() : null });
+                    }}
+                    className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-0.5">Due date</label>
+                  <input
+                    type="datetime-local"
+                    defaultValue={toDatetimeLocal(card.dueDate)}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      updateMutation.mutate({ dueDate: val ? new Date(val).toISOString() : null });
+                    }}
+                    className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  {card.dueDate && (
+                    <p className={`text-xs mt-0.5 ${getDueDateClass(card.dueDate, columnType)}`}>
+                      {new Date(card.dueDate).toLocaleString('ko-KR', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                  )}
+                </div>
               </div>
-            )}
+            </div>
+
+            {/* Work hours */}
+            <div>
+              <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">Work Hours</h4>
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-0.5">Estimated (h)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    defaultValue={card.estimatedHours ?? ''}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      updateMutation.mutate({
+                        estimatedHours: val !== '' ? parseFloat(val) : null,
+                      });
+                    }}
+                    className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-0.5">Actual (h)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    defaultValue={card.actualHours ?? ''}
+                    onBlur={(e) => {
+                      const val = e.target.value;
+                      updateMutation.mutate({
+                        actualHours: val !== '' ? parseFloat(val) : null,
+                      });
+                    }}
+                    className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div>
+              <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">Actions</h4>
+              <div className="space-y-1.5">
+                <button
+                  onClick={() => {
+                    if (copyCardMutation.isPending) return;
+                    copyCardMutation.mutate();
+                  }}
+                  disabled={copyCardMutation.isPending}
+                  className="w-full text-left px-3 py-1.5 text-sm text-gray-700 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 disabled:opacity-50"
+                >
+                  {copyCardMutation.isPending ? 'Copying...' : 'Copy card'}
+                </button>
+                <button
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Delete card "KF-${String(card.cardNumber).padStart(3, '0')}: ${card.title}"? This action cannot be undone.`,
+                      )
+                    ) {
+                      deleteCardMutation.mutate();
+                    }
+                  }}
+                  disabled={deleteCardMutation.isPending}
+                  className="w-full text-left px-3 py-1.5 text-sm text-red-600 bg-red-50 hover:bg-red-100 rounded border border-red-200 disabled:opacity-50"
+                >
+                  {deleteCardMutation.isPending ? 'Deleting...' : 'Delete card'}
+                </button>
+              </div>
+            </div>
 
             {/* Meta */}
             <div>
@@ -290,6 +498,313 @@ export default function CardDetailModal({
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Tags section
+// ---------------------------------------------------------------------------
+
+function TagsSection({
+  tags,
+  onAdd,
+  onRemove,
+}: {
+  tags: Array<{ id: string; tag: string }>;
+  onAdd: (tag: string) => void;
+  onRemove: (tag: string) => void;
+}) {
+  const [inputValue, setInputValue] = useState('');
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const trimmed = inputValue.trim();
+      if (trimmed && !tags.some((t) => t.tag === trimmed)) {
+        onAdd(trimmed);
+        setInputValue('');
+      }
+    }
+  };
+
+  // Simple deterministic color palette for tags
+  const TAG_COLORS = [
+    'bg-blue-100 text-blue-700',
+    'bg-green-100 text-green-700',
+    'bg-purple-100 text-purple-700',
+    'bg-orange-100 text-orange-700',
+    'bg-pink-100 text-pink-700',
+    'bg-teal-100 text-teal-700',
+  ];
+
+  const colorFor = (tag: string) =>
+    TAG_COLORS[
+      tag.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % TAG_COLORS.length
+    ];
+
+  return (
+    <div>
+      <h4 className="text-sm font-medium text-gray-700 mb-2">Tags</h4>
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {tags.map((t) => (
+          <span
+            key={t.id}
+            className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${colorFor(t.tag)}`}
+          >
+            {t.tag}
+            <button
+              onClick={() => onRemove(t.tag)}
+              className="hover:opacity-70 leading-none"
+              aria-label={`Remove tag ${t.tag}`}
+            >
+              &times;
+            </button>
+          </span>
+        ))}
+      </div>
+      <input
+        type="text"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Add tag, press Enter..."
+        className="w-full px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Links section
+// ---------------------------------------------------------------------------
+
+const LINK_TYPE_LABELS: Record<string, string> = {
+  BLOCKS: 'Blocks',
+  BLOCKED_BY: 'Blocked by',
+  RELATES_TO: 'Relates to',
+  DUPLICATES: 'Duplicates',
+};
+
+function LinksSection({
+  cardId,
+  onAddLink,
+  onDeleteLink,
+}: {
+  cardId: string;
+  onAddLink: (data: { targetCardId: string; linkType: string }) => void;
+  onDeleteLink: (id: string) => void;
+}) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [targetCardId, setTargetCardId] = useState('');
+  const [linkType, setLinkType] = useState<string>('RELATES_TO');
+
+  const { data: links = [] } = useQuery<CardLink[]>({
+    queryKey: ['card-links', cardId],
+    queryFn: () => cardLinksApi.list(cardId),
+  });
+
+  const handleAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetCardId.trim()) return;
+    onAddLink({ targetCardId: targetCardId.trim(), linkType });
+    setTargetCardId('');
+    setLinkType('RELATES_TO');
+    setIsAdding(false);
+  };
+
+  // Group links by type
+  const grouped = LINK_TYPES.reduce<Record<string, CardLink[]>>((acc, lt) => {
+    acc[lt] = links.filter((l) => l.linkType === lt);
+    return acc;
+  }, {} as Record<string, CardLink[]>);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-sm font-medium text-gray-700">Links</h4>
+        <button
+          onClick={() => setIsAdding((v) => !v)}
+          className="text-xs text-blue-600 hover:text-blue-800"
+        >
+          {isAdding ? 'Cancel' : '+ Add link'}
+        </button>
+      </div>
+
+      {isAdding && (
+        <form onSubmit={handleAdd} className="flex gap-2 mb-3">
+          <input
+            type="text"
+            value={targetCardId}
+            onChange={(e) => setTargetCardId(e.target.value)}
+            placeholder="Target card ID..."
+            className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <select
+            value={linkType}
+            onChange={(e) => setLinkType(e.target.value)}
+            className="px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            {LINK_TYPES.map((lt) => (
+              <option key={lt} value={lt}>
+                {LINK_TYPE_LABELS[lt]}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+          >
+            Add
+          </button>
+        </form>
+      )}
+
+      {links.length > 0 && (
+        <div className="space-y-2">
+          {LINK_TYPES.map((lt) => {
+            const items = grouped[lt];
+            if (!items || items.length === 0) return null;
+            return (
+              <div key={lt}>
+                <p className="text-xs text-gray-500 font-medium mb-1">{LINK_TYPE_LABELS[lt]}</p>
+                <div className="space-y-1">
+                  {items.map((link) => {
+                    const related =
+                      link.sourceCardId === cardId ? link.targetCard : link.sourceCard;
+                    return (
+                      <div
+                        key={link.id}
+                        className="flex items-center justify-between px-2 py-1 bg-gray-50 rounded text-sm"
+                      >
+                        <span className="text-gray-700 truncate">
+                          {related
+                            ? `KF-${String(related.cardNumber).padStart(3, '0')} ${related.title}`
+                            : link.targetCardId}
+                        </span>
+                        <button
+                          onClick={() => onDeleteLink(link.id)}
+                          className="ml-2 text-gray-400 hover:text-red-500 text-xs flex-shrink-0"
+                          aria-label="Remove link"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {links.length === 0 && !isAdding && (
+        <p className="text-xs text-gray-400">No links yet.</p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Comment item with edit/delete
+// ---------------------------------------------------------------------------
+
+function CommentItem({
+  comment,
+  currentUserId,
+  onUpdate,
+  onDelete,
+}: {
+  comment: { id: string; content: string; createdAt: string; author: { id: string; name: string; avatarUrl: string | null } };
+  currentUserId: string | undefined;
+  onUpdate: (content: string) => void;
+  onDelete: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(comment.content);
+  const isAuthor = currentUserId === comment.author.id;
+
+  const handleSave = () => {
+    const trimmed = editText.trim();
+    if (trimmed && trimmed !== comment.content) {
+      onUpdate(trimmed);
+    }
+    setEditing(false);
+  };
+
+  const handleDelete = () => {
+    if (window.confirm('Delete this comment?')) {
+      onDelete();
+    }
+  };
+
+  return (
+    <div className="flex gap-2">
+      <div className="w-7 h-7 rounded-full bg-gray-400 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
+        {comment.author.name.charAt(0).toUpperCase()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-900">{comment.author.name}</span>
+          <span className="text-xs text-gray-400">
+            {new Date(comment.createdAt).toLocaleDateString('ko-KR')}
+          </span>
+          {isAuthor && !editing && (
+            <div className="flex items-center gap-1 ml-auto">
+              <button
+                onClick={() => {
+                  setEditText(comment.content);
+                  setEditing(true);
+                }}
+                className="text-xs text-gray-400 hover:text-blue-600"
+              >
+                Edit
+              </button>
+              <button
+                onClick={handleDelete}
+                className="text-xs text-gray-400 hover:text-red-600"
+              >
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
+        {editing ? (
+          <div className="mt-1">
+            <textarea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+              rows={3}
+              autoFocus
+            />
+            <div className="flex gap-2 mt-1">
+              <button
+                onClick={handleSave}
+                className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => {
+                  setEditText(comment.content);
+                  setEditing(false);
+                }}
+                className="px-3 py-1 text-gray-500 hover:text-gray-700 text-xs"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-700 mt-0.5">{comment.content}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Attachment section (unchanged from Batch 2)
+// ---------------------------------------------------------------------------
 
 function AttachmentSection({ cardId }: { cardId: string }) {
   const { attachments, upload, isUploading, deleteAttachment } = useAttachments(cardId);
@@ -399,6 +914,10 @@ function AttachmentSection({ cardId }: { cardId: string }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Editable title
+// ---------------------------------------------------------------------------
+
 function EditableTitle({
   value,
   onSave,
@@ -446,6 +965,10 @@ function EditableTitle({
     </h2>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Editable description
+// ---------------------------------------------------------------------------
 
 function EditableDescription({
   value,
@@ -505,6 +1028,10 @@ function EditableDescription({
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Comment input
+// ---------------------------------------------------------------------------
 
 function CommentInput({ onSubmit }: { onSubmit: (content: string) => void }) {
   const [content, setContent] = useState('');

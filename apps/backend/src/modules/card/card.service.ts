@@ -183,7 +183,92 @@ export class CardService {
         ...(dto.startDate !== undefined && { startDate: dto.startDate ? new Date(dto.startDate) : null }),
         ...(dto.dueDate !== undefined && { dueDate: dto.dueDate ? new Date(dto.dueDate) : null }),
         ...(dto.estimatedHours !== undefined && { estimatedHours: dto.estimatedHours }),
+        ...(dto.actualHours !== undefined && { actualHours: dto.actualHours }),
+        ...(dto.coverColor !== undefined && { coverColor: dto.coverColor }),
+        ...(dto.coverImageUrl !== undefined && { coverImageUrl: dto.coverImageUrl }),
       },
+    });
+  }
+
+  async copy(id: string, userId: string, targetColumnId?: string) {
+    const card = await this.prisma.card.findUnique({
+      where: { id },
+      include: {
+        labels: true,
+        checklists: { include: { items: true } },
+        tags: true,
+      },
+    });
+    if (!card) throw new NotFoundException('Card not found');
+
+    const columnId = targetColumnId || card.columnId;
+    const column = await this.prisma.column.findUnique({ where: { id: columnId } });
+    if (!column) throw new NotFoundException('Target column not found');
+
+    const lastCard = await this.prisma.card.findFirst({
+      where: { columnId, archivedAt: null },
+      orderBy: { position: 'desc' },
+      select: { position: true },
+    });
+    const position = lastCard ? lastCard.position + 1024 : 1024;
+
+    const maxCardNumber = await this.prisma.card.aggregate({
+      where: { boardId: column.boardId },
+      _max: { cardNumber: true },
+    });
+    const cardNumber = (maxCardNumber._max.cardNumber ?? 0) + 1;
+
+    return this.prisma.$transaction(async (tx) => {
+      const newCard = await tx.card.create({
+        data: {
+          boardId: column.boardId,
+          columnId,
+          swimlaneId: card.swimlaneId,
+          cardNumber,
+          title: `${card.title} (copy)`,
+          description: card.description,
+          priority: card.priority,
+          position,
+          startDate: card.startDate,
+          dueDate: card.dueDate,
+          estimatedHours: card.estimatedHours,
+          createdById: userId,
+        },
+      });
+
+      if (card.labels.length > 0) {
+        await tx.cardLabel.createMany({
+          data: card.labels.map((l) => ({ cardId: newCard.id, labelId: l.labelId })),
+        });
+      }
+
+      if (card.tags.length > 0) {
+        await tx.cardTag.createMany({
+          data: card.tags.map((t) => ({ cardId: newCard.id, tag: t.tag })),
+        });
+      }
+
+      for (const checklist of card.checklists) {
+        const newChecklist = await tx.checklist.create({
+          data: {
+            cardId: newCard.id,
+            title: checklist.title,
+            position: checklist.position,
+          },
+        });
+        if (checklist.items.length > 0) {
+          await tx.checklistItem.createMany({
+            data: checklist.items.map((item) => ({
+              checklistId: newChecklist.id,
+              title: item.title,
+              position: item.position,
+              isChecked: false,
+            })),
+          });
+        }
+      }
+
+      return newCard;
     });
   }
 

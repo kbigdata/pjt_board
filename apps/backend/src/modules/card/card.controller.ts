@@ -24,6 +24,7 @@ import { BoardService } from '../board/board.service';
 import { CreateCardDto } from './dto/create-card.dto';
 import { UpdateCardDto } from './dto/update-card.dto';
 import { MoveCardDto } from './dto/move-card.dto';
+import { CopyCardDto } from './dto/copy-card.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { BoardGateway } from '../board/board.gateway';
@@ -189,6 +190,24 @@ export class CardController {
     await this.requireCardBoardRole(id, user.id, [Role.OWNER, Role.ADMIN]);
     await this.cardService.delete(id);
     return { message: 'Card deleted successfully' };
+  }
+
+  // ── Copy ──
+
+  @Post('cards/:id/copy')
+  @ApiOperation({ summary: 'Copy card with labels, tags, and checklists' })
+  @ApiParam({ name: 'id', description: 'Card ID' })
+  @ApiResponse({ status: 201, description: 'Card copied' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Card or column not found' })
+  async copy(
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+    @Body() dto: CopyCardDto,
+  ) {
+    await this.requireCardBoardRole(id, user.id, [Role.OWNER, Role.ADMIN, Role.MEMBER]);
+    return this.cardService.copy(id, user.id, dto.targetColumnId);
   }
 
   // ── Assignee management ──

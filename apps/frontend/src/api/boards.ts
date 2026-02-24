@@ -117,4 +117,12 @@ export const boardsApi = {
 
   permanentDelete: (id: string) =>
     apiClient.delete(`/boards/${id}/permanent`).then((r) => r.data),
+
+  copyCard: (cardId: string, targetColumnId?: string) =>
+    apiClient
+      .post<Card>(`/cards/${cardId}/copy`, { targetColumnId })
+      .then((r) => r.data),
+
+  deleteCard: (cardId: string) =>
+    apiClient.delete(`/cards/${cardId}`).then((r) => r.data),
 };
