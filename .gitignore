@@ -5,6 +5,12 @@ node_modules/
 # Build outputs
 dist/
 build/
+*.tsbuildinfo
+*.js.map
+
+# Compiled JS/DTS in source dirs (shared package etc.)
+packages/*/src/**/*.js
+packages/*/src/**/*.d.ts
 
 # Turbo
 .turbo/
