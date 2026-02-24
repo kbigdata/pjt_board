@@ -6,6 +6,7 @@ import { UserModule } from './modules/user/user.module';
 import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { BoardModule } from './modules/board/board.module';
 import { ColumnModule } from './modules/column/column.module';
+import { CardModule } from './modules/card/card.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ColumnModule } from './modules/column/column.module';
     WorkspaceModule,
     BoardModule,
     ColumnModule,
+    CardModule,
   ],
 })
 export class AppModule {}
