@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { boardsApi, type Card, type Column } from '@/api/boards';
+import CardDetailModal from '@/components/CardDetailModal';
 
 const PRIORITY_COLORS: Record<string, string> = {
   CRITICAL: 'bg-red-500',
@@ -14,6 +15,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const queryClient = useQueryClient();
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 
   const { data: board, isLoading: boardLoading } = useQuery({
     queryKey: ['board', boardId],
@@ -120,12 +122,20 @@ export default function BoardPage() {
                 column={column}
                 cards={(cards ?? []).filter((c) => c.columnId === column.id).sort((a, b) => a.position - b.position)}
                 onAddCard={(title) => createCardMutation.mutate({ title, columnId: column.id })}
+                onCardClick={(cardId) => setSelectedCardId(cardId)}
               />
             ))}
             <AddColumnButton onAdd={(title) => createColumnMutation.mutate({ title })} />
           </div>
         </DragDropContext>
       </div>
+
+      {selectedCardId && (
+        <CardDetailModal
+          cardId={selectedCardId}
+          onClose={() => setSelectedCardId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -134,10 +144,12 @@ function KanbanColumn({
   column,
   cards,
   onAddCard,
+  onCardClick,
 }: {
   column: Column;
   cards: Card[];
   onAddCard: (title: string) => void;
+  onCardClick: (cardId: string) => void;
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState('');
@@ -182,6 +194,7 @@ function KanbanColumn({
                     ref={provided.innerRef}
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
+                    onClick={() => onCardClick(card.id)}
                     className={`bg-white rounded-lg shadow-sm border p-3 mb-2 cursor-grab ${snapshot.isDragging ? 'shadow-lg rotate-2' : 'hover:shadow-md'}`}
                   >
                     <div className="flex items-start gap-2">

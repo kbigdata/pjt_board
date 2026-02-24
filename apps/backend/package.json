@@ -49,6 +49,9 @@
     "ts-node": "^10.9.0",
     "typescript": "^5.5.0"
   },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "jest": {
     "moduleFileExtensions": [
       "js",
