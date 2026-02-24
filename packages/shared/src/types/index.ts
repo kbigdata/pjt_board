@@ -49,6 +49,23 @@ export enum ActivityAction {
   LABEL_REMOVED = 'LABEL_REMOVED',
 }
 
+// --- Auth Interfaces ---
+
+export interface JwtPayload {
+  sub: string;
+  email: string;
+}
+
+export interface TokenResponse {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  tokens: TokenResponse;
+}
+
 // --- Entity Interfaces ---
 
 export interface User {

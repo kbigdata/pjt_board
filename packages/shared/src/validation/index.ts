@@ -17,6 +17,20 @@ export const registerSchema = z.object({
   password: z.string().min(8).max(100),
 });
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(8).max(100),
+  newPassword: z.string().min(8).max(100),
+});
+
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().min(1),
+});
+
+export const updateProfileSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  avatarUrl: z.string().url().optional().nullable(),
+});
+
 // --- Workspace ---
 
 export const createWorkspaceSchema = z.object({
