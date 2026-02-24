@@ -12,6 +12,10 @@ build/
 packages/*/src/**/*.js
 packages/*/src/**/*.d.ts
 
+# Vite config build artifacts
+apps/frontend/vite.config.js
+apps/frontend/vite.config.d.ts
+
 # Turbo
 .turbo/
 
