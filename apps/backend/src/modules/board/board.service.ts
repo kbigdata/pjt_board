@@ -169,6 +169,42 @@ export class BoardService {
     this.logger.log(`Board "${board.title}" permanently deleted`);
   }
 
+  async permanentDelete(id: string) {
+    const board = await this.prisma.board.findUnique({ where: { id } });
+
+    if (!board) {
+      throw new NotFoundException('Board not found');
+    }
+
+    await this.prisma.board.delete({ where: { id } });
+    this.logger.log(`Board "${board.title}" permanently deleted (trash)`);
+  }
+
+  async cleanupExpiredArchives(): Promise<number> {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+
+    const expiredBoards = await this.prisma.board.findMany({
+      where: {
+        archivedAt: { not: null, lte: cutoff },
+      },
+      select: { id: true, title: true },
+    });
+
+    if (expiredBoards.length === 0) {
+      return 0;
+    }
+
+    const ids = expiredBoards.map((b) => b.id);
+    await this.prisma.board.deleteMany({ where: { id: { in: ids } } });
+
+    for (const board of expiredBoards) {
+      this.logger.log(`Expired archived board "${board.title}" (${board.id}) permanently deleted`);
+    }
+
+    return expiredBoards.length;
+  }
+
   async addMember(boardId: string, userId: string, role: Role = Role.MEMBER) {
     const board = await this.prisma.board.findUnique({ where: { id: boardId } });
 

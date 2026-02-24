@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DragDropContext, Droppable, Draggable, type DropResult, type DraggableProvidedDragHandleProps } from '@hello-pangea/dnd';
@@ -50,6 +50,17 @@ export default function BoardPage() {
   const [filterLabel, setFilterLabel] = useState<string>('');
   const [filterAssignee, setFilterAssignee] = useState<string>('');
 
+  // CL-003: Delete column state
+  const [deleteColumnState, setDeleteColumnState] = useState<{
+    columnId: string;
+    columnTitle: string;
+    hasCards: boolean;
+  } | null>(null);
+
+  // DD-012: Auto-scroll refs
+  const boardScrollRef = useRef<HTMLDivElement>(null);
+  const autoScrollRef = useRef<number | null>(null);
+
   const { data: board, isLoading: boardLoading } = useQuery({
     queryKey: ['board', boardId],
     queryFn: () => boardsApi.getById(boardId!),
@@ -96,18 +107,58 @@ export default function BoardPage() {
 
   const hasActiveFilters = searchQuery || filterPriority || filterLabel || filterAssignee;
 
+  // DD-009: Optimistic update for card move
   const moveCardMutation = useMutation({
     mutationFn: ({ cardId, data }: { cardId: string; data: { columnId: string; position: number } }) =>
       boardsApi.moveCard(cardId, data),
-    onSuccess: () => {
+    onMutate: async ({ cardId, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['cards', boardId] });
+      const previousCards = queryClient.getQueryData<Card[]>(['cards', boardId]);
+
+      queryClient.setQueryData<Card[]>(['cards', boardId], (old) => {
+        if (!old) return old;
+        return old.map((card) =>
+          card.id === cardId
+            ? { ...card, columnId: data.columnId, position: data.position }
+            : card,
+        );
+      });
+
+      return { previousCards };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousCards) {
+        queryClient.setQueryData(['cards', boardId], context.previousCards);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['cards', boardId] });
     },
   });
 
+  // DD-009: Optimistic update for column move
   const moveColumnMutation = useMutation({
     mutationFn: ({ columnId, data }: { columnId: string; data: { position: number } }) =>
       boardsApi.moveColumn(columnId, data),
-    onSuccess: () => {
+    onMutate: async ({ columnId, data }) => {
+      await queryClient.cancelQueries({ queryKey: ['columns', boardId] });
+      const previousColumns = queryClient.getQueryData<Column[]>(['columns', boardId]);
+
+      queryClient.setQueryData<Column[]>(['columns', boardId], (old) => {
+        if (!old) return old;
+        return old.map((col) =>
+          col.id === columnId ? { ...col, position: data.position } : col,
+        );
+      });
+
+      return { previousColumns };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousColumns) {
+        queryClient.setQueryData(['columns', boardId], context.previousColumns);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['columns', boardId] });
     },
   });
@@ -128,7 +179,68 @@ export default function BoardPage() {
     },
   });
 
+  // CL-003: Delete column mutation
+  const deleteColumnMutation = useMutation({
+    mutationFn: ({ columnId, targetColumnId }: { columnId: string; targetColumnId?: string }) =>
+      boardsApi.deleteColumn(columnId, targetColumnId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['columns', boardId] });
+      queryClient.invalidateQueries({ queryKey: ['cards', boardId] });
+      setDeleteColumnState(null);
+    },
+  });
+
+  // DD-012: Auto-scroll handler
+  const handleAutoScroll = useCallback((x: number) => {
+    const container = boardScrollRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const scrollZone = 80;
+    const scrollSpeed = 15;
+
+    if (autoScrollRef.current) {
+      cancelAnimationFrame(autoScrollRef.current);
+      autoScrollRef.current = null;
+    }
+
+    const scroll = () => {
+      if (!container) return;
+      if (x < rect.left + scrollZone) {
+        container.scrollLeft -= scrollSpeed;
+        autoScrollRef.current = requestAnimationFrame(scroll);
+      } else if (x > rect.right - scrollZone) {
+        container.scrollLeft += scrollSpeed;
+        autoScrollRef.current = requestAnimationFrame(scroll);
+      }
+    };
+
+    if (x < rect.left + scrollZone || x > rect.right - scrollZone) {
+      scroll();
+    }
+  }, []);
+
+  // DD-012: Drag start — attach mousemove listener for auto-scroll
+  const handleDragStart = useCallback(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      handleAutoScroll(e.clientX);
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+    (boardScrollRef as React.MutableRefObject<HTMLDivElement & { _cleanup?: () => void }>).current &&
+      ((boardScrollRef as React.MutableRefObject<HTMLDivElement & { _cleanup?: () => void }>).current._cleanup = () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        if (autoScrollRef.current) {
+          cancelAnimationFrame(autoScrollRef.current);
+          autoScrollRef.current = null;
+        }
+      });
+  }, [handleAutoScroll]);
+
   const handleDragEnd = (result: DropResult) => {
+    // DD-012: cleanup auto-scroll
+    const scrollEl = boardScrollRef.current as (HTMLDivElement & { _cleanup?: () => void }) | null;
+    scrollEl?._cleanup?.();
+
     if (!result.destination) return;
     const { type, draggableId, destination } = result;
 
@@ -174,6 +286,22 @@ export default function BoardPage() {
       newPosition = destCards[destCards.length - 1].position + 1024;
     } else {
       newPosition = (destCards[destIndex - 1].position + destCards[destIndex].position) / 2;
+    }
+
+    // WP-001: WIP limit check before moving card
+    if (columns) {
+      const destColumn = columns.find((c) => c.id === destColumnId);
+      if (destColumn?.wipLimit) {
+        const currentCardCount = (cards ?? []).filter(
+          (c) => c.columnId === destColumnId && c.id !== draggableId,
+        ).length;
+        if (currentCardCount >= destColumn.wipLimit) {
+          const confirmed = window.confirm(
+            `Column "${destColumn.title}" has reached its WIP limit of ${destColumn.wipLimit}. Do you want to move the card anyway?`,
+          );
+          if (!confirmed) return;
+        }
+      }
     }
 
     moveCardMutation.mutate({
@@ -277,8 +405,8 @@ export default function BoardPage() {
       </div>
 
       {/* Board content */}
-      <div className="flex-1 overflow-x-auto p-4">
-        <DragDropContext onDragEnd={handleDragEnd}>
+      <div ref={boardScrollRef} className="flex-1 overflow-x-auto p-4">
+        <DragDropContext onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
           <Droppable droppableId="board-columns" direction="horizontal" type="COLUMN">
             {(provided) => (
               <div
@@ -316,6 +444,14 @@ export default function BoardPage() {
                               dimFiltered={!!hasActiveFilters}
                               totalCards={totalCount}
                               onCollapse={() => toggleColumn(column.id)}
+                              onDelete={() => {
+                                const colCards = (cards ?? []).filter((c) => c.columnId === column.id);
+                                setDeleteColumnState({
+                                  columnId: column.id,
+                                  columnTitle: column.title,
+                                  hasCards: colCards.length > 0,
+                                });
+                              }}
                             />
                           )}
                         </div>
@@ -353,6 +489,89 @@ export default function BoardPage() {
           onClose={() => setArchiveOpen(false)}
         />
       )}
+
+      {/* CL-003: Delete column modal */}
+      {deleteColumnState && (
+        <DeleteColumnModal
+          columnId={deleteColumnState.columnId}
+          columnTitle={deleteColumnState.columnTitle}
+          hasCards={deleteColumnState.hasCards}
+          columns={sortedColumns}
+          onConfirm={(targetColumnId) =>
+            deleteColumnMutation.mutate({ columnId: deleteColumnState.columnId, targetColumnId })
+          }
+          onCancel={() => setDeleteColumnState(null)}
+          isPending={deleteColumnMutation.isPending}
+        />
+      )}
+    </div>
+  );
+}
+
+// CL-003: Delete column modal component
+function DeleteColumnModal({
+  columnId,
+  columnTitle,
+  hasCards,
+  columns,
+  onConfirm,
+  onCancel,
+  isPending,
+}: {
+  columnId: string;
+  columnTitle: string;
+  hasCards: boolean;
+  columns: Column[];
+  onConfirm: (targetColumnId?: string) => void;
+  onCancel: () => void;
+  isPending: boolean;
+}) {
+  const [targetColumnId, setTargetColumnId] = useState('');
+  const otherColumns = columns.filter((c) => c.id !== columnId);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          Delete column "{columnTitle}"
+        </h3>
+        {hasCards ? (
+          <>
+            <p className="text-sm text-gray-600 mb-4">
+              This column has cards. Where should they be moved?
+            </p>
+            <select
+              value={targetColumnId}
+              onChange={(e) => setTargetColumnId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select a column...</option>
+              {otherColumns.map((col) => (
+                <option key={col.id} value={col.id}>{col.title}</option>
+              ))}
+            </select>
+          </>
+        ) : (
+          <p className="text-sm text-gray-600 mb-4">
+            This column has no cards and will be permanently deleted.
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(hasCards ? targetColumnId || undefined : undefined)}
+            disabled={isPending || (hasCards && !targetColumnId)}
+            className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 disabled:opacity-50"
+          >
+            {isPending ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -417,6 +636,7 @@ function KanbanColumn({
   dimFiltered,
   totalCards,
   onCollapse,
+  onDelete,
 }: {
   column: Column;
   cards: Card[];
@@ -426,6 +646,7 @@ function KanbanColumn({
   dimFiltered: boolean;
   totalCards: number;
   onCollapse: () => void;
+  onDelete: () => void;
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState('');
@@ -441,11 +662,14 @@ function KanbanColumn({
 
   const displayCount = dimFiltered ? `${cards.length}/${totalCards}` : String(cards.length);
 
+  // WP-001: WIP limit warning state
+  const isOverWip = column.wipLimit != null && totalCards >= column.wipLimit;
+
   return (
-    <div className="flex flex-col bg-gray-100 rounded-lg h-full">
+    <div className={`flex flex-col rounded-lg h-full ${isOverWip ? 'bg-red-50 ring-2 ring-red-200' : 'bg-gray-100'}`}>
       <div
         {...dragHandleProps}
-        className="px-3 py-2 flex items-center justify-between cursor-grab"
+        className={`px-3 py-2 flex items-center justify-between cursor-grab ${isOverWip ? 'bg-red-100 rounded-t-lg' : ''}`}
       >
         <div className="flex items-center gap-2">
           {column.color && (
@@ -456,10 +680,28 @@ function KanbanColumn({
         </div>
         <div className="flex items-center gap-1">
           {column.wipLimit && (
-            <span className={`text-xs px-1.5 py-0.5 rounded ${totalCards >= column.wipLimit ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-500'}`}>
+            <span className={`text-xs px-1.5 py-0.5 rounded ${isOverWip ? 'bg-red-200 text-red-700 font-semibold' : 'bg-gray-200 text-gray-500'}`}>
+              {isOverWip && (
+                <svg className="w-3 h-3 inline mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+              )}
               {column.wipLimit}
             </span>
           )}
+          {/* CL-003: Delete column button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="text-gray-300 hover:text-red-500 transition-colors ml-1"
+            title="Delete column"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
           <button
             onClick={onCollapse}
             className="text-gray-400 hover:text-gray-600 text-xs ml-1"
@@ -527,6 +769,35 @@ function KanbanColumn({
                                 {a.user.name.charAt(0).toUpperCase()}
                               </div>
                             ))}
+                          </div>
+                        )}
+                        {/* CD-020: Card preview badges */}
+                        {card._count && (card._count.comments > 0 || card._count.checklists > 0 || card._count.attachments > 0) && (
+                          <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                            {card._count.comments > 0 && (
+                              <span className="flex items-center gap-0.5" title={`${card._count.comments} comments`}>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                                {card._count.comments}
+                              </span>
+                            )}
+                            {card._count.checklists > 0 && (
+                              <span className="flex items-center gap-0.5" title={`${card._count.checklists} checklists`}>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                </svg>
+                                {card._count.checklists}
+                              </span>
+                            )}
+                            {card._count.attachments > 0 && (
+                              <span className="flex items-center gap-0.5" title={`${card._count.attachments} attachments`}>
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                </svg>
+                                {card._count.attachments}
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>

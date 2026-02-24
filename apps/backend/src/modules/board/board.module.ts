@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { BoardService } from './board.service';
 import { BoardController } from './board.controller';
 import { BoardGateway } from './board.gateway';
+import { BoardScheduler } from './board.scheduler';
 import { WorkspaceModule } from '../workspace/workspace.module';
 import { ActivityModule } from '../activity/activity.module';
 import { NotificationModule } from '../notification/notification.module';
@@ -13,6 +15,7 @@ import { NotificationModule } from '../notification/notification.module';
     WorkspaceModule,
     ActivityModule,
     NotificationModule,
+    ScheduleModule.forRoot(),
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -22,7 +25,7 @@ import { NotificationModule } from '../notification/notification.module';
     }),
   ],
   controllers: [BoardController],
-  providers: [BoardService, BoardGateway],
+  providers: [BoardService, BoardGateway, BoardScheduler],
   exports: [BoardService, BoardGateway],
 })
 export class BoardModule {}

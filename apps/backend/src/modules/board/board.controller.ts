@@ -168,6 +168,23 @@ export class BoardController {
     return { message: 'Board deleted successfully' };
   }
 
+  @Delete('boards/:id/permanent')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Permanently delete board from trash (OWNER only)' })
+  @ApiParam({ name: 'id', description: 'Board ID' })
+  @ApiResponse({ status: 200, description: 'Board permanently deleted from trash' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Only OWNER can permanently delete' })
+  @ApiResponse({ status: 404, description: 'Board not found' })
+  async permanentDelete(
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+  ) {
+    await this.requireBoardRole(id, user.id, [Role.OWNER]);
+    await this.boardService.permanentDelete(id);
+    return { message: 'Board permanently deleted' };
+  }
+
   // ── Member management endpoints ──
 
   @Post('boards/:id/members')

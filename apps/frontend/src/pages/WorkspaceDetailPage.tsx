@@ -2,13 +2,16 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { workspacesApi } from '@/api/workspaces';
-import { boardsApi } from '@/api/boards';
+import { boardsApi, type Board } from '@/api/boards';
 
 export default function WorkspaceDetailPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState('');
+
+  // BD-004: Archived boards toggle
+  const [showArchived, setShowArchived] = useState(false);
 
   const { data: workspace, isLoading: wsLoading } = useQuery({
     queryKey: ['workspace', workspaceId],
@@ -22,6 +25,13 @@ export default function WorkspaceDetailPage() {
     enabled: !!workspaceId,
   });
 
+  // BD-004: Archived boards query
+  const { data: archivedBoards, isLoading: archivedLoading } = useQuery({
+    queryKey: ['boards', workspaceId, 'archived'],
+    queryFn: () => boardsApi.listArchived(workspaceId!),
+    enabled: !!workspaceId && showArchived,
+  });
+
   const createBoardMutation = useMutation({
     mutationFn: (data: { title: string }) => boardsApi.create(workspaceId!, data),
     onSuccess: () => {
@@ -31,9 +41,34 @@ export default function WorkspaceDetailPage() {
     },
   });
 
+  // BD-004: Restore board mutation
+  const restoreBoardMutation = useMutation({
+    mutationFn: (id: string) => boardsApi.restore(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['boards', workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ['boards', workspaceId, 'archived'] });
+    },
+  });
+
+  // BD-004: Permanent delete mutation
+  const permanentDeleteMutation = useMutation({
+    mutationFn: (id: string) => boardsApi.permanentDelete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['boards', workspaceId, 'archived'] });
+    },
+  });
+
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     createBoardMutation.mutate({ title });
+  };
+
+  const getRemainingDays = (archivedAt: string | null): number => {
+    if (!archivedAt) return 30;
+    return Math.max(
+      0,
+      30 - Math.floor((Date.now() - new Date(archivedAt).getTime()) / (1000 * 60 * 60 * 24)),
+    );
   };
 
   if (wsLoading || boardsLoading) {
@@ -60,12 +95,20 @@ export default function WorkspaceDetailPage() {
 
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-medium text-gray-900">Boards</h3>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
-        >
-          New Board
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowArchived((v) => !v)}
+            className={`text-sm px-3 py-1.5 rounded border ${showArchived ? 'bg-amber-50 border-amber-300 text-amber-700' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}`}
+          >
+            {showArchived ? 'Hide archived' : 'Show archived'}
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+          >
+            New Board
+          </button>
+        </div>
       </div>
 
       {showCreate && (
@@ -122,6 +165,74 @@ export default function WorkspaceDetailPage() {
               </div>
             </Link>
           ))}
+        </div>
+      )}
+
+      {/* BD-004: Archived boards section */}
+      {showArchived && (
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-4">
+            <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1.647 11.647A2 2 0 008.638 21h6.724a2 2 0 001.991-1.353L19 8" />
+            </svg>
+            <h3 className="text-base font-medium text-gray-700">Archived Boards</h3>
+          </div>
+
+          {archivedLoading ? (
+            <div className="text-sm text-gray-400">Loading archived boards...</div>
+          ) : !archivedBoards?.length ? (
+            <div className="text-sm text-gray-400 py-4">No archived boards.</div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {archivedBoards.map((board: Board) => {
+                const remainingDays = getRemainingDays(board.archivedAt);
+                return (
+                  <div
+                    key={board.id}
+                    className="bg-white rounded-lg shadow-sm border border-amber-200 p-4 opacity-80"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h4 className="font-semibold text-gray-700 truncate">{board.title}</h4>
+                        {board.description && (
+                          <p className="text-sm text-gray-400 mt-1 line-clamp-2">
+                            {board.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${remainingDays <= 7 ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
+                        {remainingDays === 0 ? 'Expires today' : `${remainingDays}d remaining`}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => restoreBoardMutation.mutate(board.id)}
+                          disabled={restoreBoardMutation.isPending}
+                          className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                          title="Restore board"
+                        >
+                          Restore
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Permanently delete "${board.title}"? This cannot be undone.`)) {
+                              permanentDeleteMutation.mutate(board.id);
+                            }
+                          }}
+                          disabled={permanentDeleteMutation.isPending}
+                          className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                          title="Permanently delete"
+                        >
+                          Delete forever
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>

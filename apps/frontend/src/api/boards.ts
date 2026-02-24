@@ -105,4 +105,16 @@ export const boardsApi = {
 
   restoreCard: (cardId: string) =>
     apiClient.post<Card>(`/cards/${cardId}/restore`).then((r) => r.data),
+
+  deleteColumn: (columnId: string, targetColumnId?: string) =>
+    apiClient.delete(`/columns/${columnId}`, { params: targetColumnId ? { targetColumnId } : undefined }).then((r) => r.data),
+
+  listArchived: (workspaceId: string) =>
+    apiClient.get<Board[]>(`/workspaces/${workspaceId}/boards/archived`).then((r) => r.data),
+
+  restore: (id: string) =>
+    apiClient.post(`/boards/${id}/restore`).then((r) => r.data),
+
+  permanentDelete: (id: string) =>
+    apiClient.delete(`/boards/${id}/permanent`).then((r) => r.data),
 };

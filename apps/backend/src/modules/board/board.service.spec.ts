@@ -250,6 +250,54 @@ describe('BoardService', () => {
     });
   });
 
+  describe('permanentDelete', () => {
+    it('should permanently delete an archived board', async () => {
+      const archivedBoard = { ...mockBoard, archivedAt: new Date() };
+      prisma.board.findUnique.mockResolvedValue(archivedBoard);
+      prisma.board.delete.mockResolvedValue(archivedBoard);
+
+      await service.permanentDelete('board-1');
+
+      expect(prisma.board.delete).toHaveBeenCalledWith({ where: { id: 'board-1' } });
+    });
+
+    it('should throw NotFoundException for non-existent board', async () => {
+      prisma.board.findUnique.mockResolvedValue(null);
+
+      await expect(service.permanentDelete('non-existent')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('cleanupExpiredArchives', () => {
+    it('should delete boards archived more than 30 days ago and return count', async () => {
+      const oldDate = new Date();
+      oldDate.setDate(oldDate.getDate() - 31);
+      const expiredBoards = [
+        { id: 'board-1', title: 'Old Board 1' },
+        { id: 'board-2', title: 'Old Board 2' },
+      ];
+      prisma.board.findMany.mockResolvedValue(expiredBoards);
+      prisma.board.deleteMany = jest.fn().mockResolvedValue({ count: 2 });
+
+      const count = await service.cleanupExpiredArchives();
+
+      expect(count).toBe(2);
+      expect(prisma.board.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['board-1', 'board-2'] } },
+      });
+    });
+
+    it('should return 0 when no expired boards exist', async () => {
+      prisma.board.findMany.mockResolvedValue([]);
+      prisma.board.deleteMany = jest.fn();
+
+      const count = await service.cleanupExpiredArchives();
+
+      expect(count).toBe(0);
+      expect(prisma.board.deleteMany).not.toHaveBeenCalled();
+    });
+  });
+
   describe('addMember', () => {
     it('should add a new member', async () => {
       prisma.board.findUnique.mockResolvedValue(mockBoard);

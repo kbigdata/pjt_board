@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -17,6 +18,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { ColumnService } from './column.service';
@@ -146,6 +148,30 @@ export class ColumnController {
   ) {
     await this.requireColumnBoardAccess(id, user.id, [Role.OWNER, Role.ADMIN]);
     return this.columnService.restore(id);
+  }
+
+  @Delete('columns/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete column, optionally migrating cards to another column (OWNER/ADMIN only)' })
+  @ApiParam({ name: 'id', description: 'Column ID' })
+  @ApiQuery({
+    name: 'targetColumnId',
+    required: false,
+    description: 'Target column ID to migrate cards into before deleting',
+  })
+  @ApiResponse({ status: 200, description: 'Column deleted' })
+  @ApiResponse({ status: 400, description: 'Column has cards and no target column provided' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Column or target column not found' })
+  async remove(
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+    @Query('targetColumnId') targetColumnId?: string,
+  ) {
+    await this.requireColumnBoardAccess(id, user.id, [Role.OWNER, Role.ADMIN]);
+    await this.columnService.deleteWithMigration(id, targetColumnId);
+    return { message: 'Column deleted successfully' };
   }
 
   // ── Helpers ──

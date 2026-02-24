@@ -1,6 +1,7 @@
 import {
   Injectable,
   NotFoundException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { ColumnType } from '@prisma/client';
@@ -124,6 +125,74 @@ export class ColumnService {
       where: { id },
       data: { archivedAt: null },
     });
+  }
+
+  async deleteWithMigration(columnId: string, targetColumnId?: string): Promise<void> {
+    const column = await this.prisma.column.findUnique({
+      where: { id: columnId },
+      include: {
+        cards: {
+          where: { archivedAt: null },
+          select: { id: true, position: true },
+          orderBy: { position: 'asc' },
+        },
+      },
+    });
+
+    if (!column) {
+      throw new NotFoundException('Column not found');
+    }
+
+    const hasCards = column.cards.length > 0;
+
+    if (hasCards && !targetColumnId) {
+      throw new BadRequestException(
+        'Column has cards. Provide a target column to migrate them.',
+      );
+    }
+
+    if (hasCards && targetColumnId) {
+      const targetColumn = await this.prisma.column.findUnique({
+        where: { id: targetColumnId },
+        include: {
+          cards: {
+            where: { archivedAt: null },
+            select: { position: true },
+            orderBy: { position: 'desc' },
+          },
+        },
+      });
+
+      if (!targetColumn) {
+        throw new NotFoundException('Target column not found');
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        const lastTargetPosition =
+          targetColumn.cards.length > 0 ? targetColumn.cards[0].position : 0;
+
+        let nextPosition = lastTargetPosition + 1024;
+        for (const card of column.cards) {
+          await tx.card.update({
+            where: { id: card.id },
+            data: {
+              columnId: targetColumnId,
+              position: nextPosition,
+            },
+          });
+          nextPosition += 1024;
+        }
+
+        await tx.column.delete({ where: { id: columnId } });
+      });
+
+      this.logger.log(
+        `Column "${column.title}" deleted; ${column.cards.length} card(s) migrated to column ${targetColumnId}`,
+      );
+    } else {
+      await this.prisma.column.delete({ where: { id: columnId } });
+      this.logger.log(`Column "${column.title}" deleted (no cards)`);
+    }
   }
 
   async getBoardId(columnId: string): Promise<string | null> {
