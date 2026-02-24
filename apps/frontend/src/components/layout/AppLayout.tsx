@@ -1,12 +1,17 @@
 import { Navigate, Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth';
 import { useProfile, useLogout } from '@/hooks/useAuth';
+import { useUserSocket } from '@/hooks/useSocket';
+import NotificationBell from '@/components/NotificationBell';
 
 export default function AppLayout() {
   const { isAuthenticated, user } = useAuthStore();
   const { isLoading } = useProfile();
   const logoutMutation = useLogout();
   const location = useLocation();
+
+  // Join user room for real-time notifications
+  useUserSocket(user?.id);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -42,6 +47,7 @@ export default function AppLayout() {
             </nav>
           </div>
           <div className="flex items-center gap-4">
+            <NotificationBell />
             <span className="text-sm text-gray-600">{user?.name}</span>
             <button
               onClick={() => logoutMutation.mutate()}

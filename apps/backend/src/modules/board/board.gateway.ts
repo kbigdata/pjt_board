@@ -10,8 +10,10 @@ import {
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
-import { ActivityAction } from '@prisma/client';
+import { ActivityAction, NotificationType } from '@prisma/client';
 import { ActivityService } from '../activity/activity.service';
+import { NotificationService } from '../notification/notification.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 interface AuthSocket extends Socket {
   userId?: string;
@@ -32,6 +34,8 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly jwtService: JwtService,
     private readonly activityService: ActivityService,
+    private readonly notificationService: NotificationService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async handleConnection(client: AuthSocket) {
@@ -81,6 +85,51 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
+  @SubscribeMessage('joinUser')
+  handleJoinUser(
+    @ConnectedSocket() client: AuthSocket,
+    @MessageBody() data: { userId: string },
+  ) {
+    if (client.userId && client.userId === data.userId) {
+      client.join(`user:${data.userId}`);
+      this.logger.log(`User ${client.userId} joined personal room`);
+    }
+  }
+
+  // --- Notification helpers ---
+
+  emitNotification(userId: string, notification: Record<string, unknown>) {
+    this.server.to(`user:${userId}`).emit('notification', notification);
+  }
+
+  async emitCardAssigned(
+    boardId: string,
+    assignedById: string,
+    assigneeId: string,
+    card: Record<string, unknown>,
+  ) {
+    this.server.to(`board:${boardId}`).emit('cardUpdated', card);
+
+    if (assigneeId !== assignedById) {
+      const notification = await this.notificationService.create({
+        userId: assigneeId,
+        type: NotificationType.CARD_ASSIGNED,
+        title: 'You were assigned to a card',
+        message: `You were assigned to "${card.title as string}"`,
+        link: `/boards/${boardId}`,
+      });
+      this.emitNotification(assigneeId, notification as unknown as Record<string, unknown>);
+    }
+
+    await this.activityService.log({
+      boardId,
+      userId: assignedById,
+      action: ActivityAction.ASSIGNED,
+      cardId: card.id as string,
+      details: { assigneeId, title: card.title },
+    });
+  }
+
   // --- Broadcast helpers called from controllers/services ---
 
   async emitCardCreated(boardId: string, userId: string, card: Record<string, unknown>) {
@@ -119,6 +168,28 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
       cardId: card.id as string,
       details: { fromColumnId, toColumnId: card.columnId },
     });
+
+    // Notify card assignees (excluding the user who moved the card)
+    const assignees = await this.prisma.cardAssignee.findMany({
+      where: { cardId: card.id as string },
+      select: { userId: true },
+    });
+    const assigneeIds = assignees
+      .map((a) => a.userId)
+      .filter((id) => id !== userId);
+
+    if (assigneeIds.length > 0) {
+      await this.notificationService.createForMany({
+        userIds: assigneeIds,
+        type: NotificationType.CARD_MOVED,
+        title: 'A card was moved',
+        message: `Card "${card.title as string}" was moved to a new column`,
+        link: `/boards/${boardId}`,
+      });
+      for (const assigneeId of assigneeIds) {
+        this.server.to(`user:${assigneeId}`).emit('notificationUnread', { boardId });
+      }
+    }
   }
 
   async emitCardArchived(boardId: string, userId: string, cardId: string) {
@@ -143,7 +214,12 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`board:${boardId}`).emit('columnMoved', column);
   }
 
-  async emitCommentAdded(boardId: string, userId: string, cardId: string, comment: Record<string, unknown>) {
+  async emitCommentAdded(
+    boardId: string,
+    userId: string,
+    cardId: string,
+    comment: Record<string, unknown>,
+  ) {
     this.server.to(`board:${boardId}`).emit('commentAdded', { cardId, comment });
     await this.activityService.log({
       boardId,
@@ -151,5 +227,30 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
       action: ActivityAction.COMMENTED,
       cardId,
     });
+
+    // Notify card assignees (excluding the commenter)
+    const card = await this.prisma.card.findUnique({
+      where: { id: cardId },
+      select: { title: true, assignees: { select: { userId: true } } },
+    });
+
+    if (card) {
+      const assigneeIds = card.assignees
+        .map((a) => a.userId)
+        .filter((id) => id !== userId);
+
+      if (assigneeIds.length > 0) {
+        await this.notificationService.createForMany({
+          userIds: assigneeIds,
+          type: NotificationType.CARD_COMMENTED,
+          title: 'New comment on your card',
+          message: `Someone commented on "${card.title}"`,
+          link: `/boards/${boardId}`,
+        });
+        for (const assigneeId of assigneeIds) {
+          this.server.to(`user:${assigneeId}`).emit('notificationUnread', { boardId });
+        }
+      }
+    }
   }
 }

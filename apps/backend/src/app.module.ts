@@ -11,6 +11,7 @@ import { CommentModule } from './modules/comment/comment.module';
 import { LabelModule } from './modules/label/label.module';
 import { ChecklistModule } from './modules/checklist/checklist.module';
 import { ActivityModule } from './modules/activity/activity.module';
+import { NotificationModule } from './modules/notification/notification.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ActivityModule } from './modules/activity/activity.module';
     LabelModule,
     ChecklistModule,
     ActivityModule,
+    NotificationModule,
   ],
 })
 export class AppModule {}

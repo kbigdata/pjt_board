@@ -99,4 +99,10 @@ export const boardsApi = {
 
   moveColumn: (columnId: string, data: { position: number }) =>
     apiClient.patch(`/columns/${columnId}/move`, data).then((r) => r.data),
+
+  getArchivedCards: (boardId: string) =>
+    apiClient.get<Card[]>(`/boards/${boardId}/cards/archived`).then((r) => r.data),
+
+  restoreCard: (cardId: string) =>
+    apiClient.post<Card>(`/cards/${cardId}/restore`).then((r) => r.data),
 };

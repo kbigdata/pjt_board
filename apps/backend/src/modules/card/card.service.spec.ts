@@ -122,6 +122,30 @@ describe('CardService', () => {
     });
   });
 
+  describe('findArchivedByBoardId', () => {
+    it('should return only archived cards', async () => {
+      const archivedCard = { ...mockCard, archivedAt: new Date() };
+      prisma.card.findMany.mockResolvedValue([archivedCard]);
+
+      const result = await service.findArchivedByBoardId('board-1');
+
+      expect(result).toHaveLength(1);
+      expect(prisma.card.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { boardId: 'board-1', archivedAt: { not: null } },
+        }),
+      );
+    });
+
+    it('should return empty array when no archived cards', async () => {
+      prisma.card.findMany.mockResolvedValue([]);
+
+      const result = await service.findArchivedByBoardId('board-1');
+
+      expect(result).toHaveLength(0);
+    });
+  });
+
   describe('findAllByBoardId', () => {
     it('should return non-archived cards', async () => {
       prisma.card.findMany.mockResolvedValue([mockCard]);

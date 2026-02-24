@@ -5,7 +5,9 @@ import { DragDropContext, Droppable, Draggable, type DropResult, type DraggableP
 import { boardsApi, type Card, type Column } from '@/api/boards';
 import CardDetailModal from '@/components/CardDetailModal';
 import ActivityFeed from '@/components/ActivityFeed';
+import ArchiveDrawer from '@/components/ArchiveDrawer';
 import { useBoardSocket } from '@/hooks/useSocket';
+import { useColumnCollapseStore } from '@/stores/columnCollapse';
 
 const PRIORITY_COLORS: Record<string, string> = {
   CRITICAL: 'bg-red-500',
@@ -38,6 +40,9 @@ export default function BoardPage() {
   useBoardSocket(boardId);
 
   const [activityOpen, setActivityOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+
+  const { toggleColumn, isCollapsed } = useColumnCollapseStore();
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -202,12 +207,20 @@ export default function BoardPage() {
           </Link>
           <h2 className="text-lg font-semibold text-gray-900">{board?.title}</h2>
         </div>
-        <button
-          onClick={() => setActivityOpen((v) => !v)}
-          className={`text-sm px-3 py-1 rounded ${activityOpen ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
-        >
-          Activity
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setArchiveOpen((v) => !v)}
+            className={`text-sm px-3 py-1 rounded ${archiveOpen ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
+          >
+            Archive
+          </button>
+          <button
+            onClick={() => setActivityOpen((v) => !v)}
+            className={`text-sm px-3 py-1 rounded ${activityOpen ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
+          >
+            Activity
+          </button>
+        </div>
       </div>
 
       {/* Search & Filter bar */}
@@ -273,27 +286,43 @@ export default function BoardPage() {
                 {...provided.droppableProps}
                 className="flex gap-4 h-full"
               >
-                {sortedColumns.map((column, index) => (
-                  <Draggable key={column.id} draggableId={column.id} index={index}>
-                    {(provided, snapshot) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        className={`w-72 flex-shrink-0 ${snapshot.isDragging ? 'opacity-80' : ''}`}
-                      >
-                        <KanbanColumn
-                          column={column}
-                          cards={filteredCards.filter((c) => c.columnId === column.id).sort((a, b) => a.position - b.position)}
-                          onAddCard={(title) => createCardMutation.mutate({ title, columnId: column.id })}
-                          onCardClick={(cardId) => setSelectedCardId(cardId)}
-                          dragHandleProps={provided.dragHandleProps}
-                          dimFiltered={!!hasActiveFilters}
-                          totalCards={(cards ?? []).filter((c) => c.columnId === column.id).length}
-                        />
-                      </div>
-                    )}
-                  </Draggable>
-                ))}
+                {sortedColumns.map((column, index) => {
+                  const collapsed = isCollapsed(column.id);
+                  const columnCards = filteredCards.filter((c) => c.columnId === column.id).sort((a, b) => a.position - b.position);
+                  const totalCount = (cards ?? []).filter((c) => c.columnId === column.id).length;
+
+                  return (
+                    <Draggable key={column.id} draggableId={column.id} index={index}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          className={`flex-shrink-0 ${collapsed ? 'w-10' : 'w-72'} ${snapshot.isDragging ? 'opacity-80' : ''}`}
+                        >
+                          {collapsed ? (
+                            <CollapsedColumn
+                              column={column}
+                              cardCount={totalCount}
+                              onExpand={() => toggleColumn(column.id)}
+                              dragHandleProps={provided.dragHandleProps}
+                            />
+                          ) : (
+                            <KanbanColumn
+                              column={column}
+                              cards={columnCards}
+                              onAddCard={(title) => createCardMutation.mutate({ title, columnId: column.id })}
+                              onCardClick={(cardId) => setSelectedCardId(cardId)}
+                              dragHandleProps={provided.dragHandleProps}
+                              dimFiltered={!!hasActiveFilters}
+                              totalCards={totalCount}
+                              onCollapse={() => toggleColumn(column.id)}
+                            />
+                          )}
+                        </div>
+                      )}
+                    </Draggable>
+                  );
+                })}
                 {provided.placeholder}
                 <AddColumnButton onAdd={(title) => createColumnMutation.mutate({ title })} />
               </div>
@@ -316,6 +345,65 @@ export default function BoardPage() {
           onClose={() => setActivityOpen(false)}
         />
       )}
+
+      {boardId && (
+        <ArchiveDrawer
+          boardId={boardId}
+          isOpen={archiveOpen}
+          onClose={() => setArchiveOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function CollapsedColumn({
+  column,
+  cardCount,
+  onExpand,
+  dragHandleProps,
+}: {
+  column: Column;
+  cardCount: number;
+  onExpand: () => void;
+  dragHandleProps: DraggableProvidedDragHandleProps | null | undefined;
+}) {
+  return (
+    <div className="flex flex-col bg-gray-100 rounded-lg h-full items-center">
+      <div
+        {...dragHandleProps}
+        className="w-full px-1 py-2 flex justify-center cursor-grab"
+      >
+        <button
+          onClick={onExpand}
+          className="text-gray-400 hover:text-gray-600 text-xs"
+          title="Expand column"
+        >
+          &raquo;
+        </button>
+      </div>
+      <Droppable droppableId={column.id} type="CARD">
+        {(provided) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            className="flex-1 min-h-[2rem]"
+          >
+            {provided.placeholder}
+          </div>
+        )}
+      </Droppable>
+      <div
+        className="py-2 text-xs font-medium text-gray-500"
+        style={{ writingMode: 'vertical-rl' }}
+      >
+        {column.title}
+      </div>
+      <div className="pb-2">
+        <span className="text-xs bg-gray-200 text-gray-600 rounded-full w-5 h-5 flex items-center justify-center">
+          {cardCount}
+        </span>
+      </div>
     </div>
   );
 }
@@ -328,6 +416,7 @@ function KanbanColumn({
   dragHandleProps,
   dimFiltered,
   totalCards,
+  onCollapse,
 }: {
   column: Column;
   cards: Card[];
@@ -336,6 +425,7 @@ function KanbanColumn({
   dragHandleProps: DraggableProvidedDragHandleProps | null | undefined;
   dimFiltered: boolean;
   totalCards: number;
+  onCollapse: () => void;
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState('');
@@ -364,11 +454,20 @@ function KanbanColumn({
           <h3 className="font-medium text-sm text-gray-700">{column.title}</h3>
           <span className="text-xs text-gray-400">{displayCount}</span>
         </div>
-        {column.wipLimit && (
-          <span className={`text-xs px-1.5 py-0.5 rounded ${totalCards >= column.wipLimit ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-500'}`}>
-            {column.wipLimit}
-          </span>
-        )}
+        <div className="flex items-center gap-1">
+          {column.wipLimit && (
+            <span className={`text-xs px-1.5 py-0.5 rounded ${totalCards >= column.wipLimit ? 'bg-red-100 text-red-600' : 'bg-gray-200 text-gray-500'}`}>
+              {column.wipLimit}
+            </span>
+          )}
+          <button
+            onClick={onCollapse}
+            className="text-gray-400 hover:text-gray-600 text-xs ml-1"
+            title="Collapse column"
+          >
+            &laquo;
+          </button>
+        </div>
       </div>
 
       <Droppable droppableId={column.id} type="CARD">

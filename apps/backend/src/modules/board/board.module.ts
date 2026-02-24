@@ -6,11 +6,13 @@ import { BoardController } from './board.controller';
 import { BoardGateway } from './board.gateway';
 import { WorkspaceModule } from '../workspace/workspace.module';
 import { ActivityModule } from '../activity/activity.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
     WorkspaceModule,
     ActivityModule,
+    NotificationModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({

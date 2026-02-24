@@ -49,6 +49,14 @@ export enum ActivityAction {
   LABEL_REMOVED = 'LABEL_REMOVED',
 }
 
+export enum NotificationType {
+  CARD_ASSIGNED = 'CARD_ASSIGNED',
+  CARD_COMMENTED = 'CARD_COMMENTED',
+  CARD_DUE_SOON = 'CARD_DUE_SOON',
+  CARD_MOVED = 'CARD_MOVED',
+  MEMBER_ADDED = 'MEMBER_ADDED',
+}
+
 // --- Auth Interfaces ---
 
 export interface JwtPayload {
@@ -257,4 +265,15 @@ export interface AutomationRule {
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  link: string | null;
+  isRead: boolean;
+  createdAt: Date;
 }

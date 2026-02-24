@@ -71,6 +71,20 @@ export class CardController {
     return this.cardService.findAllByBoardId(boardId);
   }
 
+  @Get('boards/:boardId/cards/archived')
+  @ApiOperation({ summary: 'List archived cards in board' })
+  @ApiParam({ name: 'boardId', description: 'Board ID' })
+  @ApiResponse({ status: 200, description: 'List of archived cards' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Not a board member' })
+  async findArchivedInBoard(
+    @CurrentUser() user: { id: string },
+    @Param('boardId') boardId: string,
+  ) {
+    await this.requireBoardMembership(boardId, user.id);
+    return this.cardService.findArchivedByBoardId(boardId);
+  }
+
   @Get('cards/:id')
   @ApiOperation({ summary: 'Get card details' })
   @ApiParam({ name: 'id', description: 'Card ID' })
@@ -193,7 +207,13 @@ export class CardController {
     @Param('userId') userId: string,
   ) {
     await this.requireCardBoardRole(id, user.id, [Role.OWNER, Role.ADMIN, Role.MEMBER]);
-    return this.cardService.addAssignee(id, userId);
+    const result = await this.cardService.addAssignee(id, userId);
+    const boardId = await this.cardService.getBoardId(id);
+    const card = await this.cardService.findById(id);
+    if (boardId) {
+      this.boardGateway.emitCardAssigned(boardId, user.id, userId, card as unknown as Record<string, unknown>);
+    }
+    return result;
   }
 
   @Delete('cards/:id/assignees/:userId')

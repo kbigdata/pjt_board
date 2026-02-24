@@ -1,0 +1,160 @@
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  useNotifications,
+  useUnreadCount,
+  useMarkAsRead,
+  useMarkAllAsRead,
+} from '@/hooks/useNotifications';
+import type { Notification } from '@/api/notifications';
+
+function timeAgo(date: string): string {
+  const diff = Date.now() - new Date(date).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+export default function NotificationBell() {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  const { data: unreadData } = useUnreadCount();
+  const { data: notifications, isLoading } = useNotifications(isOpen);
+  const markAsRead = useMarkAsRead();
+  const markAllAsRead = useMarkAllAsRead();
+
+  const unreadCount = unreadData?.count ?? 0;
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  function handleNotificationClick(notification: Notification) {
+    if (!notification.isRead) {
+      markAsRead.mutate(notification.id);
+    }
+    if (notification.link) {
+      navigate(notification.link);
+    }
+    setIsOpen(false);
+  }
+
+  function handleMarkAllRead() {
+    markAllAsRead.mutate();
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+        aria-label="Notifications"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="w-5 h-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+          />
+        </svg>
+        {unreadCount > 0 && (
+          <span className="absolute top-1 right-1 min-w-[1rem] h-4 px-0.5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center leading-none">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-1 w-80 bg-white border border-gray-200 shadow-lg rounded-lg z-50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllRead}
+                disabled={markAllAsRead.isPending}
+                className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
+              >
+                Mark all read
+              </button>
+            )}
+          </div>
+
+          <div className="max-h-96 overflow-y-auto">
+            {isLoading ? (
+              <div className="px-4 py-6 text-sm text-gray-400 text-center">Loading...</div>
+            ) : !notifications || notifications.length === 0 ? (
+              <div className="px-4 py-6 text-sm text-gray-400 text-center">
+                No notifications yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {notifications.map((notification) => (
+                  <NotificationItem
+                    key={notification.id}
+                    notification={notification}
+                    onClick={handleNotificationClick}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NotificationItem({
+  notification,
+  onClick,
+}: {
+  notification: Notification;
+  onClick: (notification: Notification) => void;
+}) {
+  return (
+    <button
+      onClick={() => onClick(notification)}
+      className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-start gap-3 ${
+        !notification.isRead ? 'bg-blue-50/40' : ''
+      }`}
+    >
+      <div className="flex-shrink-0 mt-1">
+        {!notification.isRead ? (
+          <span className="block w-2 h-2 rounded-full bg-blue-500" />
+        ) : (
+          <span className="block w-2 h-2 rounded-full bg-transparent" />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-900 truncate">{notification.title}</p>
+        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{notification.message}</p>
+        <p className="text-xs text-gray-400 mt-1">{timeAgo(notification.createdAt)}</p>
+      </div>
+    </button>
+  );
+}

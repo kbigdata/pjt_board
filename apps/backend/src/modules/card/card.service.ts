@@ -107,6 +107,19 @@ export class CardService {
     });
   }
 
+  async findArchivedByBoardId(boardId: string) {
+    return this.prisma.card.findMany({
+      where: { boardId, archivedAt: { not: null } },
+      include: {
+        column: { select: { id: true, title: true } },
+        assignees: {
+          include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+        },
+      },
+      orderBy: { archivedAt: 'desc' },
+    });
+  }
+
   async findAllByBoardId(boardId: string) {
     return this.prisma.card.findMany({
       where: { boardId, archivedAt: null },

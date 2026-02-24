@@ -33,6 +33,37 @@ export function useSocket() {
   return socketRef.current;
 }
 
+export function useUserSocket(userId: string | undefined) {
+  const socket = useSocket();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const handleConnect = () => {
+      socket.emit('joinUser', { userId });
+    };
+
+    if (socket.connected) {
+      socket.emit('joinUser', { userId });
+    }
+    socket.on('connect', handleConnect);
+
+    const handleNotification = () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    };
+
+    socket.on('notification', handleNotification);
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('notification', handleNotification);
+    };
+  }, [userId, socket, queryClient]);
+
+  return socket;
+}
+
 export function useBoardSocket(boardId: string | undefined) {
   const socket = useSocket();
   const queryClient = useQueryClient();
