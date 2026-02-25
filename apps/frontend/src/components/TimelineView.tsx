@@ -161,21 +161,21 @@ export default function TimelineView({ cards, onCardClick }: TimelineViewProps) 
     <div className="flex flex-col h-full">
       {/* Controls */}
       <div className="flex items-center gap-3 mb-4">
-        <div className="flex items-center rounded border border-gray-300 overflow-hidden">
+        <div className="flex items-center rounded border border-[var(--border-secondary)] overflow-hidden">
           <button
             onClick={() => setZoom('week')}
-            className={`text-sm px-3 py-1 ${zoom === 'week' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+            className={`text-sm px-3 py-1 ${zoom === 'week' ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
           >
             Week
           </button>
           <button
             onClick={() => setZoom('month')}
-            className={`text-sm px-3 py-1 border-l border-gray-300 ${zoom === 'month' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+            className={`text-sm px-3 py-1 border-l border-[var(--border-secondary)] ${zoom === 'month' ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
           >
             Month
           </button>
         </div>
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-[var(--text-secondary)]">
           {scheduled.length} scheduled, {unscheduled.length} unscheduled
         </span>
         <button
@@ -185,36 +185,36 @@ export default function TimelineView({ cards, onCardClick }: TimelineViewProps) 
               scrollRef.current.scrollLeft = scrollX;
             }
           }}
-          className="text-sm px-3 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+          className="text-sm px-3 py-1 rounded border border-[var(--border-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
         >
           Jump to today
         </button>
       </div>
 
       {scheduled.length === 0 && (
-        <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+        <div className="mb-4 px-4 py-3 bg-[var(--warning-light)] border border-[var(--warning)] rounded-lg text-sm text-[var(--warning)]">
           No cards have start or due dates. Add dates to cards to see them in the timeline.
         </div>
       )}
 
       {/* Timeline */}
-      <div className="flex flex-1 overflow-hidden border border-gray-200 rounded-lg">
+      <div className="flex flex-1 overflow-hidden border border-[var(--border-primary)] rounded-lg bg-[var(--bg-primary)]">
         {/* Left panel: card titles */}
-        <div className="flex-shrink-0 bg-white border-r border-gray-200 z-10" style={{ width: LEFT_PANEL_WIDTH }}>
+        <div className="flex-shrink-0 bg-[var(--bg-primary)] border-r border-[var(--border-primary)] z-10" style={{ width: LEFT_PANEL_WIDTH }}>
           {/* Header spacer */}
-          <div className="border-b border-gray-200" style={{ height: HEADER_HEIGHT }}>
-            <div className="px-3 py-2 text-xs font-medium text-gray-500 uppercase">Cards</div>
+          <div className="border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]" style={{ height: HEADER_HEIGHT }}>
+            <div className="px-3 py-2 text-xs font-medium text-[var(--text-secondary)] uppercase">Cards</div>
           </div>
           {/* Card rows */}
-          {scheduled.map((sc) => (
+          {scheduled.map((sc, rowIdx) => (
             <div
               key={sc.card.id}
-              className="flex items-center px-3 border-b border-gray-100"
+              className={`flex items-center px-3 border-b border-[var(--border-primary)] ${rowIdx % 2 === 0 ? 'bg-[var(--bg-primary)]' : 'bg-[var(--bg-secondary)]'}`}
               style={{ height: ROW_HEIGHT }}
             >
               <button
                 onClick={() => onCardClick(sc.card.id)}
-                className="text-sm text-gray-700 hover:text-blue-600 truncate text-left w-full"
+                className="text-sm text-[var(--text-primary)] hover:text-[var(--accent)] truncate text-left w-full"
                 title={sc.card.title}
               >
                 {sc.card.title}
@@ -224,11 +224,11 @@ export default function TimelineView({ cards, onCardClick }: TimelineViewProps) 
         </div>
 
         {/* Right panel: scrollable timeline */}
-        <div ref={scrollRef} className="flex-1 overflow-x-auto overflow-y-hidden">
+        <div ref={scrollRef} className="flex-1 overflow-x-auto overflow-y-hidden bg-[var(--bg-primary)]">
           <div style={{ width: totalWidth, minWidth: '100%' }}>
             {/* Time axis header */}
             <div
-              className="relative border-b border-gray-200 bg-gray-50"
+              className="relative border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]"
               style={{ height: HEADER_HEIGHT }}
             >
               {/* Month/week labels at separators */}
@@ -238,8 +238,8 @@ export default function TimelineView({ cards, onCardClick }: TimelineViewProps) 
                   className="absolute top-0 flex flex-col items-start"
                   style={{ left: sep.x }}
                 >
-                  <div className="w-px h-full bg-gray-300" />
-                  <span className="absolute top-1 left-1 text-xs text-gray-500 font-medium whitespace-nowrap">
+                  <div className="w-px h-full bg-[var(--border-secondary)]" />
+                  <span className="absolute top-1 left-1 text-xs text-[var(--text-secondary)] font-medium whitespace-nowrap">
                     {sep.label}
                   </span>
                 </div>
@@ -252,7 +252,7 @@ export default function TimelineView({ cards, onCardClick }: TimelineViewProps) 
                   style={{ left: col.x, width: dayWidth }}
                 >
                   <span
-                    className={`text-xs ${col.isToday ? 'text-blue-600 font-bold' : 'text-gray-400'}`}
+                    className={`text-xs ${col.isToday ? 'text-[var(--accent)] font-bold' : 'text-[var(--text-tertiary)]'}`}
                   >
                     {col.label}
                   </span>
@@ -261,7 +261,7 @@ export default function TimelineView({ cards, onCardClick }: TimelineViewProps) 
             </div>
 
             {/* Card bars area */}
-            <div className="relative" style={{ height: scheduled.length * ROW_HEIGHT }}>
+            <div className="relative bg-[var(--bg-primary)]" style={{ height: scheduled.length * ROW_HEIGHT }}>
               {/* Today line */}
               {todayX >= 0 && todayX <= totalWidth && (
                 <div
@@ -274,7 +274,7 @@ export default function TimelineView({ cards, onCardClick }: TimelineViewProps) 
               {scheduled.map((sc, rowIdx) => (
                 <div
                   key={sc.card.id + '-bg'}
-                  className={`absolute left-0 right-0 ${rowIdx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
+                  className={`absolute left-0 right-0 ${rowIdx % 2 === 0 ? 'bg-[var(--bg-primary)]' : 'bg-[var(--bg-secondary)]'}`}
                   style={{ top: rowIdx * ROW_HEIGHT, height: ROW_HEIGHT }}
                 />
               ))}
@@ -283,7 +283,7 @@ export default function TimelineView({ cards, onCardClick }: TimelineViewProps) 
               {separators.map((sep, i) => (
                 <div
                   key={'grid-' + i}
-                  className="absolute top-0 bottom-0 w-px bg-gray-200"
+                  className="absolute top-0 bottom-0 w-px bg-[var(--border-primary)]"
                   style={{ left: sep.x }}
                 />
               ))}
@@ -329,7 +329,7 @@ export default function TimelineView({ cards, onCardClick }: TimelineViewProps) 
       {/* Unscheduled section */}
       {unscheduled.length > 0 && (
         <div className="mt-4">
-          <h3 className="text-sm font-medium text-gray-500 uppercase mb-2">
+          <h3 className="text-sm font-medium text-[var(--text-secondary)] uppercase mb-2">
             Unscheduled ({unscheduled.length})
           </h3>
           <div className="flex flex-wrap gap-2">
@@ -337,7 +337,7 @@ export default function TimelineView({ cards, onCardClick }: TimelineViewProps) 
               <button
                 key={card.id}
                 onClick={() => onCardClick(card.id)}
-                className="text-sm px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200"
+                className="text-sm px-3 py-1.5 rounded bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] text-[var(--text-primary)] border border-[var(--border-primary)]"
               >
                 {card.title}
               </button>
