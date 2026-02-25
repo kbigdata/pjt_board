@@ -43,7 +43,7 @@ export default function ActivityFeed({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed right-0 top-[3.5rem] bottom-0 w-80 bg-white border-l shadow-lg z-40 flex flex-col">
+    <div className="detail-panel fixed right-0 top-[3.5rem] bottom-0 w-80 z-40 flex flex-col">
       <div className="px-4 py-3 border-b flex items-center justify-between">
         <h3 className="font-semibold text-sm text-gray-900">Activity</h3>
         <button

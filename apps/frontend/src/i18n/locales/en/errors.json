@@ -1,0 +1,14 @@
+{
+  "notFound": "Page not found",
+  "serverError": "Server error occurred",
+  "unauthorized": "Please log in to continue",
+  "forbidden": "You don't have permission",
+  "network": "Network error occurred",
+  "validation": {
+    "required": "This field is required",
+    "email": "Please enter a valid email address",
+    "minLength": "Minimum {{count}} characters required",
+    "maxLength": "Maximum {{count}} characters allowed",
+    "passwordMismatch": "Passwords do not match"
+  }
+}

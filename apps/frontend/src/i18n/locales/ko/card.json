@@ -1,0 +1,42 @@
+{
+  "title": "카드",
+  "create": "카드 추가",
+  "edit": "편집",
+  "delete": "삭제",
+  "archive": "아카이브",
+  "move": "이동",
+  "copy": "복사",
+  "props": {
+    "status": "상태",
+    "assignee": "담당자",
+    "label": "라벨",
+    "priority": "우선순위",
+    "dueDate": "마감일",
+    "startDate": "시작일",
+    "estimate": "예상 시간",
+    "actual": "실제 시간",
+    "tags": "태그"
+  },
+  "priority": {
+    "critical": "긴급",
+    "high": "높음",
+    "medium": "보통",
+    "low": "낮음",
+    "none": "없음"
+  },
+  "status": {
+    "todo": "할 일",
+    "inProgress": "진행 중",
+    "review": "검토",
+    "done": "완료"
+  },
+  "tabs": {
+    "description": "설명",
+    "subtasks": "서브태스크",
+    "checklist": "체크리스트",
+    "attachments": "첨부파일",
+    "comments": "코멘트",
+    "activity": "활동 로그"
+  },
+  "descriptionPlaceholder": "설명을 추가하세요..."
+}

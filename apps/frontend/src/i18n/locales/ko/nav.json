@@ -1,0 +1,22 @@
+{
+  "home": "홈",
+  "search": "검색",
+  "activity": "활동",
+  "bookmarks": "북마크",
+  "dashboard": "대시보드",
+  "create": "만들기",
+  "profile": "프로필",
+  "settings": "설정",
+  "logout": "로그아웃",
+  "theme": {
+    "title": "테마",
+    "light": "라이트",
+    "dark": "다크",
+    "system": "시스템 설정"
+  },
+  "language": {
+    "title": "언어",
+    "ko": "한국어",
+    "en": "English"
+  }
+}

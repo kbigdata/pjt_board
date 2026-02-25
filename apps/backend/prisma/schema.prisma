@@ -303,16 +303,20 @@ model CardLabel {
 }
 
 model Comment {
-  id        String   @id @default(uuid())
-  cardId    String   @map("card_id")
-  authorId  String   @map("author_id")
-  content   String
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(uuid())
+  cardId          String   @map("card_id")
+  authorId        String   @map("author_id")
+  content         String
+  parentCommentId String?  @map("parent_comment_id")
+  isPinned        Boolean  @default(false) @map("is_pinned")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  card      Card              @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  author    User              @relation(fields: [authorId], references: [id])
-  reactions CommentReaction[]
+  card          Card              @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  author        User              @relation(fields: [authorId], references: [id])
+  reactions     CommentReaction[]
+  parentComment Comment?          @relation("CommentReplies", fields: [parentCommentId], references: [id])
+  replies       Comment[]         @relation("CommentReplies")
 
   @@map("comments")
 }

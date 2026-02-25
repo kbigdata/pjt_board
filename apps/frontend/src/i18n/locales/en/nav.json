@@ -1,0 +1,22 @@
+{
+  "home": "Home",
+  "search": "Search",
+  "activity": "Activity",
+  "bookmarks": "Bookmarks",
+  "dashboard": "Dashboard",
+  "create": "Create",
+  "profile": "Profile",
+  "settings": "Settings",
+  "logout": "Log out",
+  "theme": {
+    "title": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "language": {
+    "title": "Language",
+    "ko": "한국어",
+    "en": "English"
+  }
+}

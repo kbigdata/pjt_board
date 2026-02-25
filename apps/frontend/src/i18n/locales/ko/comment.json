@@ -1,0 +1,21 @@
+{
+  "placeholder": "코멘트를 입력하세요...",
+  "reply": "답글",
+  "replyPlaceholder": "답글을 입력하세요...",
+  "thread": "스레드",
+  "replies": "{{count}}개의 답글",
+  "relatedThreads": "관련 스레드",
+  "pin": "고정",
+  "unpin": "고정 해제",
+  "pinned": "고정된 항목",
+  "edit": "편집",
+  "delete": "삭제",
+  "copyLink": "링크 복사",
+  "reaction": "리액션 추가",
+  "alsoSendTo": "활동 로그에도 표시",
+  "send": "전송",
+  "edited": "(편집됨)",
+  "deleted": "삭제된 코멘트입니다",
+  "noComments": "아직 코멘트가 없습니다",
+  "cardDetails": "카드 상세"
+}

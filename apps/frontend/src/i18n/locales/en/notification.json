@@ -1,0 +1,13 @@
+{
+  "title": "Notifications",
+  "markAllRead": "Mark all as read",
+  "markRead": "Mark as read",
+  "empty": "No notifications",
+  "types": {
+    "mention": "Mention",
+    "assign": "Card assigned",
+    "comment": "Comment",
+    "dueDate": "Due soon",
+    "board": "Board invite"
+  }
+}

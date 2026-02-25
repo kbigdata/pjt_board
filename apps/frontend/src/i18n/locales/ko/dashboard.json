@@ -1,0 +1,18 @@
+{
+  "title": "대시보드",
+  "charts": "차트",
+  "metrics": "지표",
+  "export": "내보내기",
+  "cards": {
+    "totalCards": "전체 카드",
+    "completedCards": "완료된 카드",
+    "overdueCards": "지연된 카드",
+    "inProgress": "진행 중"
+  },
+  "period": {
+    "today": "오늘",
+    "week": "이번 주",
+    "month": "이번 달",
+    "custom": "직접 설정"
+  }
+}

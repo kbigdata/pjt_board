@@ -1,0 +1,13 @@
+{
+  "title": "Automation",
+  "rules": "Rules",
+  "trigger": "Trigger",
+  "action": "Action",
+  "condition": "Condition",
+  "enabled": "Enabled",
+  "disabled": "Disabled",
+  "create": "Create Rule",
+  "edit": "Edit Rule",
+  "delete": "Delete Rule",
+  "empty": "No automation rules"
+}

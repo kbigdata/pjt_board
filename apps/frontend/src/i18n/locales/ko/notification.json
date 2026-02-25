@@ -1,0 +1,13 @@
+{
+  "title": "알림",
+  "markAllRead": "모두 읽음 표시",
+  "markRead": "읽음 표시",
+  "empty": "알림이 없습니다",
+  "types": {
+    "mention": "멘션",
+    "assign": "카드 배정",
+    "comment": "코멘트",
+    "dueDate": "마감일 임박",
+    "board": "보드 초대"
+  }
+}

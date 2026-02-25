@@ -1,3 +1,413 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════ */
+/*  KanFlow Design Tokens v1.0 - Global & Semantic        */
+/* ═══════════════════════════════════════════════════════ */
+
+/* Layer 1: Global Primitives */
+:root {
+  /* Gray Scale (Tailwind Slate) */
+  --gray-50:  #F8FAFC;  --gray-100: #F1F5F9;
+  --gray-200: #E2E8F0;  --gray-300: #CBD5E1;
+  --gray-400: #94A3B8;  --gray-500: #64748B;
+  --gray-600: #475569;  --gray-700: #334155;
+  --gray-800: #1E293B;  --gray-900: #0F172A;
+  --gray-950: #020617;
+
+  /* Blue Scale */
+  --blue-50:  #EFF6FF;  --blue-100: #DBEAFE;
+  --blue-200: #BFDBFE;  --blue-400: #60A5FA;
+  --blue-500: #3B82F6;  --blue-600: #2563EB;
+  --blue-700: #1D4ED8;  --blue-900: #1E3A5F;
+
+  /* Functional Colors */
+  --green-500: #10B981;  --green-100: #D1FAE5;  --green-900: #064E3B;
+  --yellow-500: #F59E0B; --yellow-100: #FEF3C7; --yellow-900: #78350F;
+  --red-500: #EF4444;    --red-100: #FEE2E2;    --red-900: #7F1D1D;
+  --orange-500: #F97316;
+
+  /* Typography */
+  --font-sans: "Pretendard Variable", Pretendard, Inter,
+               -apple-system, BlinkMacSystemFont, system-ui,
+               "Segoe UI", "Noto Sans KR", sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", "Fira Code",
+               Menlo, Consolas, monospace;
+
+  /* Font Sizes */
+  --text-xs:   11px;   --text-sm:   12px;
+  --text-base: 14px;   --text-md:   13px;
+  --text-lg:   16px;   --text-xl:   20px;
+  --text-2xl:  24px;   --text-3xl:  30px;
+
+  /* Font Weights */
+  --fw-regular:  400;  --fw-medium:   500;
+  --fw-semibold: 600;  --fw-bold:     700;
+
+  /* Spacing (8px base) */
+  --sp-0: 0; --sp-1: 4px; --sp-2: 8px; --sp-3: 12px;
+  --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+  --sp-10: 40px; --sp-12: 48px; --sp-16: 64px;
+
+  /* Border Radius */
+  --r-none: 0; --r-sm: 4px; --r-md: 6px;
+  --r-lg: 8px; --r-xl: 12px; --r-2xl: 16px;
+  --r-full: 9999px;
+
+  /* Elevation shadows (keep v2.0 names for backward compat) */
+  --shadow-e0: none;
+  --shadow-e1: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-e2: 0 4px 12px rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.06);
+  --shadow-e3: 0 8px 24px rgba(0,0,0,0.14), 0 4px 8px rgba(0,0,0,0.06);
+  --shadow-e4: 0 16px 40px rgba(0,0,0,0.16), 0 8px 16px rgba(0,0,0,0.08);
+  --shadow-e5: 0 20px 48px rgba(0,0,0,0.18), 0 10px 20px rgba(0,0,0,0.08);
+
+  /* Transitions */
+  --transition-fast:   150ms ease;
+  --transition-base:   200ms ease;
+  --transition-slow:   300ms ease-in-out;
+  --transition-theme:  200ms ease;
+}
+
+/* ═══════════════ LIGHT MODE (default) ═══════════════ */
+:root, [data-theme="light"] {
+  color-scheme: light;
+
+  --bg-primary:    #FFFFFF;
+  --bg-secondary:  var(--gray-50);
+  --bg-tertiary:   var(--gray-100);
+  --bg-hover:      var(--gray-100);
+  --bg-active:     var(--gray-200);
+  --bg-overlay:    rgba(0,0,0,0.5);
+
+  --text-primary:    var(--gray-900);
+  --text-secondary:  var(--gray-600);
+  --text-tertiary:   var(--gray-400);
+  --text-inverse:    #FFFFFF;
+  --text-link:       var(--blue-600);
+
+  --border-primary:   var(--gray-200);
+  --border-secondary: var(--gray-300);
+  --border-focus:     var(--blue-500);
+
+  --accent:        var(--blue-600);
+  --accent-color:  var(--blue-600);
+  --accent-hover:  var(--blue-700);
+  --accent-light:  var(--blue-50);
+  --accent-text:   #FFFFFF;
+
+  --success:       var(--green-500);
+  --success-light: var(--green-100);
+  --warning:       var(--yellow-500);
+  --warning-light: var(--yellow-100);
+  --error:         var(--red-500);
+  --error-color:   var(--red-500);
+  --error-light:   var(--red-100);
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.1), 0 4px 6px rgba(0,0,0,0.05);
+  --shadow-xl: var(--shadow-e4);
+  --shadow-xxl: var(--shadow-e5);
+
+  --card-bg:     var(--bg-primary);
+  --card-border: var(--border-primary);
+  --card-shadow: var(--shadow-sm);
+
+  --nav-bg: #1E1E2E;
+  --sidebar-bg: var(--bg-secondary);
+  --main-bg: var(--bg-primary);
+  --sidebar-text: var(--text-secondary);
+}
+
+/* ═══════════════ DARK MODE ═══════════════ */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-primary:    var(--gray-900);
+  --bg-secondary:  var(--gray-800);
+  --bg-tertiary:   var(--gray-700);
+  --bg-hover:      var(--gray-800);
+  --bg-active:     var(--gray-700);
+  --bg-overlay:    rgba(0,0,0,0.7);
+
+  --text-primary:    var(--gray-100);
+  --text-secondary:  var(--gray-300);
+  --text-tertiary:   var(--gray-400);
+  --text-inverse:    var(--gray-900);
+  --text-link:       var(--blue-400);
+
+  --border-primary:   var(--gray-700);
+  --border-secondary: var(--gray-600);
+  --border-focus:     var(--blue-400);
+
+  --accent:        var(--blue-500);
+  --accent-color:  var(--blue-500);
+  --accent-hover:  var(--blue-400);
+  --accent-light:  var(--blue-900);
+  --accent-text:   #FFFFFF;
+
+  --success:       #34D399;
+  --success-light: var(--green-900);
+  --warning:       #FBBF24;
+  --warning-light: var(--yellow-900);
+  --error:         #F87171;
+  --error-color:   #F87171;
+  --error-light:   var(--red-900);
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.2);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.2);
+  --shadow-xl: 0 20px 25px rgba(0,0,0,0.5), 0 8px 10px rgba(0,0,0,0.2);
+  --shadow-xxl: 0 24px 40px rgba(0,0,0,0.6);
+
+  --shadow-e1: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-e2: 0 4px 16px rgba(0,0,0,0.4);
+  --shadow-e3: 0 8px 24px rgba(0,0,0,0.45);
+  --shadow-e4: 0 16px 40px rgba(0,0,0,0.5);
+  --shadow-e5: 0 20px 48px rgba(0,0,0,0.55);
+
+  --card-bg:     var(--bg-secondary);
+  --card-border: var(--border-primary);
+  --card-shadow: none;
+
+  --nav-bg: #0B1120;
+  --sidebar-bg: var(--bg-secondary);
+  --main-bg: var(--bg-primary);
+  --sidebar-text: var(--text-secondary);
+}
+
+/* Body styles */
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Theme transition animation */
+*, *::before, *::after {
+  transition: background-color var(--transition-theme),
+              color var(--transition-theme),
+              border-color var(--transition-theme),
+              box-shadow var(--transition-theme);
+}
+.no-transition, .no-transition * { transition: none !important; }
+
+/* Korean typography */
+:lang(ko) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* =====================================================
+   Box Style A: Elevated (Primary — 80% usage)
+   ===================================================== */
+.box-elevated {
+  background: var(--bg-primary);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-e1);
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+.box-elevated:hover {
+  box-shadow: var(--shadow-e2);
+  transform: translateY(-1px);
+}
+.box-elevated:active {
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  transform: translateY(0);
+}
+[data-theme="dark"] .box-elevated {
+  border: 1px solid rgba(255,255,255,0.06);
+}
+[data-theme="dark"] .box-elevated:hover {
+  border-color: rgba(255,255,255,0.12);
+}
+
+/* =====================================================
+   Box Style B: Outlined
+   ===================================================== */
+.box-outlined {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--r-lg);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.box-outlined:hover {
+  border-color: var(--accent-color);
+  background: rgba(37, 99, 235, 0.04);
+}
+.box-outlined--selected {
+  border-color: var(--accent-color);
+  background: var(--accent-light);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* =====================================================
+   Box Style C: Glass (Glassmorphism — overlays only)
+   ===================================================== */
+.box-glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-e5);
+}
+[data-theme="dark"] .box-glass {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .box-glass { background: rgba(255, 255, 255, 0.97); }
+}
+
+/* =====================================================
+   Box Style D: Soft / Neumorphism Lite (dashboard only)
+   ===================================================== */
+.box-soft {
+  background: #f1f5f9;
+  border-radius: var(--r-xl);
+  box-shadow:
+    6px 6px 12px rgba(166, 180, 200, 0.3),
+    -6px -6px 12px rgba(255, 255, 255, 0.8);
+}
+.box-soft-inset {
+  background: #f1f5f9;
+  border-radius: var(--r-xl);
+  box-shadow:
+    inset 3px 3px 6px rgba(166, 180, 200, 0.25),
+    inset -3px -3px 6px rgba(255, 255, 255, 0.7);
+}
+[data-theme="dark"] .box-soft {
+  background: #1e293b;
+  box-shadow:
+    6px 6px 12px rgba(0, 0, 0, 0.35),
+    -6px -6px 12px rgba(55, 65, 81, 0.25);
+}
+
+/* =====================================================
+   Box Style E: Gradient Border (accent — max 1~2 per screen)
+   ===================================================== */
+.box-gradient-border {
+  position: relative;
+  background: var(--bg-primary);
+  border-radius: var(--r-xl);
+}
+.box-gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-xl);
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.4), rgba(168, 85, 247, 0.4));
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.box-gradient-border:hover::before {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.7), rgba(168, 85, 247, 0.7));
+}
+
+/* =====================================================
+   Box Style F: Flat Filled (Secondary — 15% usage)
+   ===================================================== */
+.box-flat {
+  background: var(--bg-secondary);
+  border-radius: var(--r-lg);
+  transition: background var(--transition-fast);
+}
+.box-flat:hover {
+  background: var(--bg-tertiary);
+}
+
+/* =====================================================
+   Kanban Card — 5 State Styles
+   ===================================================== */
+.kanban-card {
+  background: var(--card-bg);
+  border-radius: var(--r-lg);
+  box-shadow: var(--card-shadow);
+  transition:
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast),
+    background var(--transition-fast);
+}
+.kanban-card:hover {
+  box-shadow: var(--shadow-e2);
+  transform: translateY(-1px);
+}
+.kanban-card--selected {
+  border-left: 3px solid var(--accent-color);
+  background: var(--accent-light);
+  box-shadow: var(--shadow-e1);
+}
+.kanban-card--selected:hover {
+  box-shadow: var(--shadow-e2);
+  transform: translateY(-1px);
+}
+.kanban-card--dragging {
+  box-shadow: var(--shadow-e4);
+  transform: rotate(3deg) scale(1.02);
+  opacity: 0.92;
+}
+.kanban-card--overdue {
+  border-left: 3px solid var(--error-color);
+}
+.kanban-card--overdue:hover {
+  box-shadow: var(--shadow-e2);
+  transform: translateY(-1px);
+}
+[data-theme="dark"] .kanban-card {
+  border: 1px solid var(--card-border);
+}
+[data-theme="dark"] .kanban-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* =====================================================
+   Detail Panel — left-side E3 shadow
+   ===================================================== */
+.detail-panel {
+  background: var(--bg-primary);
+  border-left: 1px solid var(--border-primary);
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.06);
+}
+.detail-panel-header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+}
+[data-theme="dark"] .detail-panel {
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
+}
+
+/* =====================================================
+   Dropdown Menu — Style A Elevated (E2)
+   ===================================================== */
+.dropdown-menu {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+}
+[data-theme="dark"] .dropdown-menu {
+  border-color: var(--border-primary);
+}
+
+/* =====================================================
+   Comment Bubble — Style F Flat (E0)
+   ===================================================== */
+.comment-bubble {
+  background: var(--bg-secondary);
+  border-radius: var(--r-lg);
+  transition: background var(--transition-fast);
+}
+[data-theme="dark"] .comment-bubble {
+  background: var(--bg-tertiary);
+}

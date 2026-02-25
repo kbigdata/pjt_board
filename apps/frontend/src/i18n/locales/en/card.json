@@ -1,0 +1,42 @@
+{
+  "title": "Card",
+  "create": "Add Card",
+  "edit": "Edit",
+  "delete": "Delete",
+  "archive": "Archive",
+  "move": "Move",
+  "copy": "Copy",
+  "props": {
+    "status": "Status",
+    "assignee": "Assignee",
+    "label": "Label",
+    "priority": "Priority",
+    "dueDate": "Due Date",
+    "startDate": "Start Date",
+    "estimate": "Estimate",
+    "actual": "Actual",
+    "tags": "Tags"
+  },
+  "priority": {
+    "critical": "Critical",
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low",
+    "none": "None"
+  },
+  "status": {
+    "todo": "To Do",
+    "inProgress": "In Progress",
+    "review": "Review",
+    "done": "Done"
+  },
+  "tabs": {
+    "description": "Description",
+    "subtasks": "Subtasks",
+    "checklist": "Checklist",
+    "attachments": "Attachments",
+    "comments": "Comments",
+    "activity": "Activity Log"
+  },
+  "descriptionPlaceholder": "Add a description..."
+}

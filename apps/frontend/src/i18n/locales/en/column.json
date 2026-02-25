@@ -1,0 +1,12 @@
+{
+  "title": "Column",
+  "add": "Add Column",
+  "rename": "Rename",
+  "delete": "Delete Column",
+  "collapse": "Collapse",
+  "expand": "Expand",
+  "addCard": "Add Card",
+  "empty": "No cards",
+  "limit": "WIP Limit",
+  "setLimit": "Set Limit"
+}

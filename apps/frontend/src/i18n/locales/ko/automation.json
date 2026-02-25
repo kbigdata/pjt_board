@@ -1,0 +1,13 @@
+{
+  "title": "자동화",
+  "rules": "규칙",
+  "trigger": "트리거",
+  "action": "액션",
+  "condition": "조건",
+  "enabled": "활성화",
+  "disabled": "비활성화",
+  "create": "규칙 만들기",
+  "edit": "규칙 편집",
+  "delete": "규칙 삭제",
+  "empty": "자동화 규칙이 없습니다"
+}

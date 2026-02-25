@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
   DragDropContext,
   Droppable,
@@ -13,7 +14,7 @@ import { templatesApi, type BoardTemplate } from '@/api/templates';
 import { savedFiltersApi, type SavedFilter } from '@/api/saved-filters';
 import { useSwimlanes } from '@/hooks/useSwimlanes';
 import { type Swimlane } from '@/api/swimlanes';
-import CardDetailModal from '@/components/CardDetailModal';
+import { useUIStore } from '@/stores/ui';
 import ActivityFeed from '@/components/ActivityFeed';
 import ArchiveDrawer from '@/components/ArchiveDrawer';
 import ListView from '@/components/ListView';
@@ -56,7 +57,7 @@ function getDueDateStatus(
     const due = new Date(dueDate);
     return {
       label: due.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
-      className: 'bg-green-100 text-green-700',
+      className: 'bg-[var(--success-light)] text-[var(--success)]',
     };
   }
 
@@ -66,13 +67,13 @@ function getDueDateStatus(
   const diffHours = diffMs / (1000 * 60 * 60);
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffMs < 0) return { label: 'Overdue', className: 'bg-red-100 text-red-700' };
-  if (diffHours <= 24) return { label: 'Due soon', className: 'bg-amber-100 text-amber-700' };
-  if (diffDays === 0) return { label: 'Due today', className: 'bg-orange-100 text-orange-700' };
-  if (diffDays <= 3) return { label: `D-${diffDays}`, className: 'bg-yellow-100 text-yellow-700' };
+  if (diffMs < 0) return { label: 'Overdue', className: 'bg-[var(--error-light)] text-[var(--error)]' };
+  if (diffHours <= 24) return { label: 'Due soon', className: 'bg-[var(--warning-light)] text-[var(--warning)]' };
+  if (diffDays === 0) return { label: 'Due today', className: 'bg-[var(--warning-light)] text-[var(--warning)]' };
+  if (diffDays <= 3) return { label: `D-${diffDays}`, className: 'bg-[var(--warning-light)] text-[var(--warning)]' };
   return {
     label: due.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
-    className: 'bg-gray-100 text-gray-500',
+    className: 'bg-[var(--bg-tertiary)] text-[var(--text-tertiary)]',
   };
 }
 
@@ -85,13 +86,13 @@ function getCardAgingDays(card: Card): number {
 
 function getCardAgingStyle(days: number): { className: string; showClock: boolean } {
   if (days >= 14) {
-    return { className: 'bg-red-50/50 opacity-70', showClock: true };
+    return { className: 'bg-[var(--error-light)]/30 opacity-70', showClock: true };
   }
   if (days >= 7) {
-    return { className: 'bg-orange-50/50 opacity-80', showClock: true };
+    return { className: 'bg-[var(--warning-light)]/30 opacity-80', showClock: true };
   }
   if (days >= 3) {
-    return { className: 'bg-yellow-50/50 opacity-90', showClock: false };
+    return { className: 'bg-[var(--warning-light)]/20 opacity-90', showClock: false };
   }
   return { className: '', showClock: false };
 }
@@ -140,8 +141,10 @@ function countActiveFilters(f: FilterState): number {
 export default function BoardPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const queryClient = useQueryClient();
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const { openCard, activeCardId } = useUIStore();
   const currentUser = useAuthStore((s) => s.user);
+  const { t } = useTranslation('board');
+  const { t: tc } = useTranslation('common');
 
   // Multi-card select state
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
@@ -193,8 +196,7 @@ export default function BoardPage() {
     onNewCard: () => firstColumnAddCardRef.current?.(),
     onFocusSearch: () => searchInputRef.current?.focus(),
     onCloseModal: () => {
-      if (selectedCardId) setSelectedCardId(null);
-      else if (selectedCardIds.size > 0) setSelectedCardIds(new Set());
+      if (selectedCardIds.size > 0) setSelectedCardIds(new Set());
       else if (activityOpen) setActivityOpen(false);
       else if (archiveOpen) setArchiveOpen(false);
       else if (showFilterPanel) setShowFilterPanel(false);
@@ -210,6 +212,18 @@ export default function BoardPage() {
     queryFn: () => boardsApi.getById(boardId!),
     enabled: !!boardId,
   });
+
+  // Save board to recent boards in localStorage
+  useEffect(() => {
+    if (boardId && board) {
+      const recent: Array<{ id: string; title: string }> = JSON.parse(
+        localStorage.getItem('kanflow:recent-boards') || '[]',
+      );
+      const filtered = recent.filter((b) => b.id !== boardId);
+      filtered.unshift({ id: boardId, title: board.title });
+      localStorage.setItem('kanflow:recent-boards', JSON.stringify(filtered.slice(0, 5)));
+    }
+  }, [boardId, board?.title]);
 
   const { data: cards } = useQuery({
     queryKey: ['cards', boardId],
@@ -626,7 +640,7 @@ export default function BoardPage() {
   if (boardLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-3.5rem)]">
-        <div className="text-gray-500">Loading board...</div>
+        <div className="text-[var(--text-secondary)]">{tc('loading')}</div>
       </div>
     );
   }
@@ -638,15 +652,15 @@ export default function BoardPage() {
   return (
     <div className="h-[calc(100vh-3.5rem)] flex flex-col">
       {/* Board header */}
-      <div className="px-4 py-3 border-b bg-white flex items-center justify-between flex-wrap gap-2">
+      <div className="px-4 py-3 border-b border-[var(--border-primary)] bg-[var(--bg-primary)] flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <Link
             to={`/workspaces/${board?.workspaceId}`}
-            className="text-sm text-blue-600 hover:underline"
+            className="text-sm text-[var(--accent)] hover:underline"
           >
-            &larr; Back
+            &larr; {tc('back')}
           </Link>
-          <h2 className="text-lg font-semibold text-gray-900">{board?.title}</h2>
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">{board?.title}</h2>
           {/* PR-001: Online presence avatars */}
           {boardOnlineUserIds.length > 0 && (
             <div className="flex items-center gap-1">
@@ -659,15 +673,15 @@ export default function BoardPage() {
                     className="relative"
                     title={memberInfo?.name ?? uid}
                   >
-                    <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium ring-2 ring-white">
+                    <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium ring-2 ring-[var(--bg-primary)]">
                       {initials}
                     </div>
-                    <span className="absolute bottom-0 right-0 w-2 h-2 bg-green-400 rounded-full ring-1 ring-white" />
+                    <span className="absolute bottom-0 right-0 w-2 h-2 bg-green-400 rounded-full ring-1 ring-[var(--bg-primary)]" />
                   </div>
                 );
               })}
               {boardOnlineUserIds.length > 5 && (
-                <span className="text-xs text-gray-400 ml-1">+{boardOnlineUserIds.length - 5}</span>
+                <span className="text-xs text-[var(--text-tertiary)] ml-1">+{boardOnlineUserIds.length - 5}</span>
               )}
             </div>
           )}
@@ -680,87 +694,87 @@ export default function BoardPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* VW-002: View toggle */}
-          <div className="flex items-center rounded border border-gray-300 overflow-hidden">
+          <div className="flex items-center rounded border border-[var(--border-secondary)] overflow-hidden">
             <button
               onClick={() => setViewMode('board')}
-              className={`text-sm px-3 py-1 ${viewMode === 'board' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+              className={`text-sm px-3 py-1 ${viewMode === 'board' ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
             >
-              Board
+              {t('views.kanban')}
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`text-sm px-3 py-1 border-l border-gray-300 ${viewMode === 'list' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+              className={`text-sm px-3 py-1 border-l border-[var(--border-secondary)] ${viewMode === 'list' ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
             >
-              List
+              {t('views.list')}
             </button>
             <button
               onClick={() => setViewMode('calendar')}
-              className={`text-sm px-3 py-1 border-l border-gray-300 ${viewMode === 'calendar' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+              className={`text-sm px-3 py-1 border-l border-[var(--border-secondary)] ${viewMode === 'calendar' ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
             >
-              Calendar
+              {t('views.calendar')}
             </button>
             <button
               onClick={() => setViewMode('timeline')}
-              className={`text-sm px-3 py-1 border-l border-gray-300 ${viewMode === 'timeline' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
+              className={`text-sm px-3 py-1 border-l border-[var(--border-secondary)] ${viewMode === 'timeline' ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
             >
-              Timeline
+              {t('views.timeline')}
             </button>
           </div>
 
           <button
             onClick={() => setSwimlaneMode((v) => !v)}
-            className={`text-sm px-3 py-1 rounded ${swimlaneMode ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={`text-sm px-3 py-1 rounded ${swimlaneMode ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
           >
-            Swimlanes
+            {t('swimlanes')}
           </button>
           <button
             onClick={() => setArchiveOpen((v) => !v)}
-            className={`text-sm px-3 py-1 rounded ${archiveOpen ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={`text-sm px-3 py-1 rounded ${archiveOpen ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
           >
-            Archive
+            {t('archive')}
           </button>
           <button
             onClick={() => setActivityOpen((v) => !v)}
-            className={`text-sm px-3 py-1 rounded ${activityOpen ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={`text-sm px-3 py-1 rounded ${activityOpen ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
           >
-            Activity
+            {t('activity')}
           </button>
 
           {/* IO-001: Export */}
           <button
             onClick={handleExportBoard}
-            className="text-sm px-3 py-1 rounded text-gray-500 hover:bg-gray-100"
+            className="text-sm px-3 py-1 rounded text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
             title="Export board as JSON"
           >
-            Export
+            {t('export')}
           </button>
 
           {/* TM: Save as template */}
           <button
             onClick={() => setShowSaveTemplate((v) => !v)}
-            className={`text-sm px-3 py-1 rounded ${showSaveTemplate ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={`text-sm px-3 py-1 rounded ${showSaveTemplate ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
           >
-            Save as Template
+            {t('saveAsTemplate')}
           </button>
 
           {/* Links to Automations and Reports */}
           <Link
             to={`/boards/${boardId}/automations`}
-            className="text-sm px-3 py-1 rounded text-gray-500 hover:bg-gray-100"
+            className="text-sm px-3 py-1 rounded text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
           >
-            Automations
+            {t('automations')}
           </Link>
           <Link
             to={`/boards/${boardId}/reports`}
-            className="text-sm px-3 py-1 rounded text-gray-500 hover:bg-gray-100"
+            className="text-sm px-3 py-1 rounded text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
           >
-            Reports
+            {t('reports')}
           </Link>
 
           {/* KB: Help shortcut hint */}
           <button
             onClick={() => setShowHelp(true)}
-            className="text-sm px-2 py-1 rounded text-gray-400 hover:bg-gray-100"
+            className="text-sm px-2 py-1 rounded text-[var(--text-tertiary)] hover:bg-[var(--bg-hover)]"
             title="Keyboard shortcuts (?)"
           >
             ?
@@ -770,7 +784,7 @@ export default function BoardPage() {
 
       {/* TM: Save as Template form */}
       {showSaveTemplate && (
-        <div className="px-4 py-3 border-b bg-blue-50">
+        <div className="px-4 py-3 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -785,8 +799,8 @@ export default function BoardPage() {
               type="text"
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value)}
-              placeholder="Template name..."
-              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-48"
+              placeholder={t('templateNamePlaceholder')}
+              className="px-3 py-1.5 border border-[var(--border-secondary)] rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-48 bg-[var(--bg-primary)] text-[var(--text-primary)]"
               required
               autoFocus
             />
@@ -794,36 +808,36 @@ export default function BoardPage() {
               type="text"
               value={templateDesc}
               onChange={(e) => setTemplateDesc(e.target.value)}
-              placeholder="Description (optional)"
-              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-56"
+              placeholder={t('templateDescPlaceholder')}
+              className="px-3 py-1.5 border border-[var(--border-secondary)] rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-56 bg-[var(--bg-primary)] text-[var(--text-primary)]"
             />
             <button
               type="submit"
               disabled={saveTemplateMutation.isPending}
               className="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50"
             >
-              {saveTemplateMutation.isPending ? 'Saving...' : 'Save Template'}
+              {saveTemplateMutation.isPending ? tc('loading') : t('saveAsTemplate')}
             </button>
             <button
               type="button"
               onClick={() => setShowSaveTemplate(false)}
-              className="px-3 py-1.5 text-gray-600 hover:text-gray-800 text-sm"
+              className="px-3 py-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm"
             >
-              Cancel
+              {tc('cancel')}
             </button>
           </form>
         </div>
       )}
 
       {/* SF-002: Filter bar */}
-      <div className="px-4 py-2 border-b bg-white flex items-center gap-3 flex-wrap">
+      <div className="px-4 py-2 border-b border-[var(--border-primary)] bg-[var(--bg-primary)] flex items-center gap-3 flex-wrap">
         <input
           ref={searchInputRef}
           type="text"
           value={filters.searchQuery}
           onChange={(e) => setFilters((f) => ({ ...f, searchQuery: e.target.value }))}
-          placeholder="Search cards..."
-          className="px-3 py-1.5 border border-gray-300 rounded-md text-sm w-48 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          placeholder={tc('search')}
+          className="px-3 py-1.5 border border-[var(--border-secondary)] rounded-md text-sm w-48 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-[var(--bg-primary)] text-[var(--text-primary)]"
         />
 
         {/* SF-002: Advanced filters toggle button */}
@@ -831,15 +845,15 @@ export default function BoardPage() {
           onClick={() => setShowFilterPanel((v) => !v)}
           className={`relative text-sm px-3 py-1.5 rounded border transition-colors ${
             showFilterPanel || activeFilterCount > 0
-              ? 'bg-blue-50 border-blue-300 text-blue-700'
-              : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+              ? 'bg-[var(--accent-light)] border-[var(--accent)] text-[var(--accent)]'
+              : 'border-[var(--border-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
           }`}
         >
           <span className="flex items-center gap-1.5">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
             </svg>
-            Filters
+            {tc('filter')}
             {activeFilterCount > 0 && (
               <span className="ml-0.5 bg-blue-600 text-white text-xs rounded-full px-1.5 py-0.5 leading-none">
                 {activeFilterCount}
@@ -851,9 +865,9 @@ export default function BoardPage() {
         {hasActiveFilters && (
           <button
             onClick={() => setFilters(getEmptyFilters())}
-            className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
+            className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2 py-1"
           >
-            Clear all
+            {tc('clear')}
           </button>
         )}
 
@@ -863,32 +877,32 @@ export default function BoardPage() {
             onClick={() => setShowSavedFilters((v) => !v)}
             className={`text-sm px-3 py-1.5 rounded border transition-colors ${
               showSavedFilters
-                ? 'bg-blue-50 border-blue-300 text-blue-700'
-                : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+                ? 'bg-[var(--accent-light)] border-[var(--accent)] text-[var(--accent)]'
+                : 'border-[var(--border-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
             }`}
           >
-            Saved Filters {savedFilters.length > 0 && `(${savedFilters.length})`}
+            {t('savedFilters')} {savedFilters.length > 0 && `(${savedFilters.length})`}
           </button>
           {showSavedFilters && (
-            <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg w-56">
+            <div className="dropdown-menu absolute top-full left-0 mt-1 z-20 w-56">
               {savedFilters.length === 0 ? (
-                <p className="text-xs text-gray-400 px-3 py-2 text-center">No saved filters.</p>
+                <p className="text-xs text-[var(--text-tertiary)] px-3 py-2 text-center">{t('noSavedFilters')}</p>
               ) : (
                 <div className="py-1 max-h-48 overflow-y-auto">
                   {savedFilters.map((sf) => (
                     <div
                       key={sf.id}
-                      className="flex items-center justify-between px-3 py-1.5 hover:bg-gray-50 group"
+                      className="flex items-center justify-between px-3 py-1.5 hover:bg-[var(--bg-hover)] group"
                     >
                       <button
                         onClick={() => handleApplySavedFilter(sf)}
-                        className="flex-1 text-left text-sm text-gray-700 truncate"
+                        className="flex-1 text-left text-sm text-[var(--text-primary)] truncate"
                       >
                         {sf.name}
                       </button>
                       <button
                         onClick={() => deleteSavedFilterMutation.mutate(sf.id)}
-                        className="text-gray-300 hover:text-red-500 ml-2 opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                        className="text-[var(--text-tertiary)] hover:text-[var(--error)] ml-2 opacity-0 group-hover:opacity-100 transition-opacity text-xs"
                         title="Delete saved filter"
                       >
                         &times;
@@ -897,15 +911,15 @@ export default function BoardPage() {
                   ))}
                 </div>
               )}
-              <div className="border-t border-gray-100 p-2">
+              <div className="border-t border-[var(--border-primary)] p-2">
                 {showSaveFilterInput ? (
                   <div className="flex gap-1">
                     <input
                       type="text"
                       value={saveFilterName}
                       onChange={(e) => setSaveFilterName(e.target.value)}
-                      placeholder="Filter name..."
-                      className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder={t('filterNamePlaceholder')}
+                      className="flex-1 px-2 py-1 border border-[var(--border-secondary)] rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-[var(--bg-primary)] text-[var(--text-primary)]"
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleSaveCurrentFilter();
@@ -917,15 +931,15 @@ export default function BoardPage() {
                       disabled={createSavedFilterMutation.isPending || !saveFilterName.trim()}
                       className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:opacity-50"
                     >
-                      Save
+                      {tc('save')}
                     </button>
                   </div>
                 ) : (
                   <button
                     onClick={() => setShowSaveFilterInput(true)}
-                    className="w-full text-xs text-center py-1 text-blue-600 hover:text-blue-800"
+                    className="w-full text-xs text-center py-1 text-[var(--accent)] hover:text-[var(--accent-hover)]"
                   >
-                    + Save current filter
+                    + {t('saveCurrentFilter')}
                   </button>
                 )}
               </div>
@@ -959,14 +973,14 @@ export default function BoardPage() {
         {viewMode === 'calendar' && cards && (
           <CalendarView
             cards={filteredCards}
-            onCardClick={(id) => setSelectedCardId(id)}
+            onCardClick={(id) => openCard(id)}
           />
         )}
         {/* VW-002: Timeline view */}
         {viewMode === 'timeline' && cards && (
           <TimelineView
             cards={filteredCards}
-            onCardClick={(id) => setSelectedCardId(id)}
+            onCardClick={(id) => openCard(id)}
           />
         )}
         {/* VW-002: List view */}
@@ -974,7 +988,7 @@ export default function BoardPage() {
           <ListView
             cards={filteredCards}
             columns={sortedColumns}
-            onCardClick={(cardId) => setSelectedCardId(cardId)}
+            onCardClick={(cardId) => openCard(cardId)}
           />
         ) : viewMode === 'board' ? (
         <DragDropContext onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
@@ -984,7 +998,7 @@ export default function BoardPage() {
               swimlanes={swimlanes}
               cards={filteredCards}
               allCards={cards ?? []}
-              onCardClick={(cardId) => setSelectedCardId(cardId)}
+              onCardClick={(cardId) => openCard(cardId)}
               collapsedSwimlanes={collapsedSwimlanes}
               onToggleSwimlane={(id) => {
                 setCollapsedSwimlanes((prev) => {
@@ -1035,7 +1049,7 @@ export default function BoardPage() {
                                 onAddCard={(title) =>
                                   createCardMutation.mutate({ title, columnId: column.id })
                                 }
-                                onCardClick={(cardId) => setSelectedCardId(cardId)}
+                                onCardClick={(cardId) => openCard(cardId)}
                                 dragHandleProps={provided.dragHandleProps}
                                 dimFiltered={!!hasActiveFilters}
                                 totalCards={totalCount}
@@ -1070,6 +1084,7 @@ export default function BoardPage() {
                                 cardEditors={cardEditors}
                                 boardMembers={board?.members ?? []}
                                 currentUserId={currentUser?.id}
+                                activeCardId={activeCardId}
                               />
                             )}
                           </div>
@@ -1088,15 +1103,6 @@ export default function BoardPage() {
       </div>
 
       {showHelp && <KeyboardShortcutHelp onClose={() => setShowHelp(false)} />}
-
-      {selectedCardId && (
-        <CardDetailModal
-          cardId={selectedCardId}
-          onClose={() => setSelectedCardId(null)}
-          socket={socket}
-          currentUserId={currentUser?.id}
-        />
-      )}
 
       {boardId && (
         <ActivityFeed
@@ -1147,6 +1153,7 @@ function AdvancedFilterPanel({
   allLabels: Array<{ id: string; name: string; color: string }>;
   allAssignees: Array<{ id: string; name: string }>;
 }) {
+  const { t } = useTranslation('board');
   const toggleSet = <T,>(set: Set<T>, item: T): Set<T> => {
     const next = new Set(set);
     if (next.has(item)) next.delete(item);
@@ -1155,10 +1162,10 @@ function AdvancedFilterPanel({
   };
 
   return (
-    <div className="px-4 py-3 border-b bg-gray-50 flex flex-wrap gap-6">
+    <div className="px-4 py-3 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] flex flex-wrap gap-6">
       {/* Priority multi-select */}
       <div>
-        <p className="text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Priority</p>
+        <p className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wide">{t('filterPriority')}</p>
         <div className="flex flex-wrap gap-1.5">
           {PRIORITIES.map((p) => (
             <button
@@ -1169,7 +1176,7 @@ function AdvancedFilterPanel({
               className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
                 filters.priorities.has(p)
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'text-gray-600 border-gray-300 hover:border-gray-400'
+                  : 'text-[var(--text-secondary)] border-[var(--border-secondary)] hover:border-[var(--border-primary)]'
               }`}
             >
               {p}
@@ -1181,7 +1188,7 @@ function AdvancedFilterPanel({
       {/* Assignee multi-select */}
       {allAssignees.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Assignee</p>
+          <p className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wide">{t('filterAssignee')}</p>
           <div className="flex flex-wrap gap-1.5">
             {allAssignees.map((a) => (
               <button
@@ -1192,7 +1199,7 @@ function AdvancedFilterPanel({
                 className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
                   filters.assigneeIds.has(a.id)
                     ? 'bg-blue-600 text-white border-blue-600'
-                    : 'text-gray-600 border-gray-300 hover:border-gray-400'
+                    : 'text-[var(--text-secondary)] border-[var(--border-secondary)] hover:border-[var(--border-primary)]'
                 }`}
               >
                 {a.name}
@@ -1205,7 +1212,7 @@ function AdvancedFilterPanel({
       {/* Label multi-select */}
       {allLabels.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Label</p>
+          <p className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wide">{t('filterLabel')}</p>
           <div className="flex flex-wrap gap-1.5">
             {allLabels.map((l) => (
               <button
@@ -1216,7 +1223,7 @@ function AdvancedFilterPanel({
                 className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
                   filters.labelIds.has(l.id)
                     ? 'text-white border-transparent'
-                    : 'text-gray-600 border-gray-300 hover:border-gray-400'
+                    : 'text-[var(--text-secondary)] border-[var(--border-secondary)] hover:border-[var(--border-primary)]'
                 }`}
                 style={
                   filters.labelIds.has(l.id)
@@ -1233,20 +1240,20 @@ function AdvancedFilterPanel({
 
       {/* Due date range */}
       <div>
-        <p className="text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wide">Due Date</p>
+        <p className="text-xs font-medium text-[var(--text-secondary)] mb-1.5 uppercase tracking-wide">{t('filterDueDate')}</p>
         <div className="flex items-center gap-2">
           <input
             type="date"
             value={filters.dueDateStart}
             onChange={(e) => onFiltersChange({ ...filters, dueDateStart: e.target.value })}
-            className="text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="text-xs px-2 py-1 border border-[var(--border-secondary)] rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-[var(--bg-primary)] text-[var(--text-primary)]"
           />
-          <span className="text-xs text-gray-400">to</span>
+          <span className="text-xs text-[var(--text-tertiary)]">{t('filterDateTo')}</span>
           <input
             type="date"
             value={filters.dueDateEnd}
             onChange={(e) => onFiltersChange({ ...filters, dueDateEnd: e.target.value })}
-            className="text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="text-xs px-2 py-1 border border-[var(--border-secondary)] rounded focus:outline-none focus:ring-1 focus:ring-blue-500 bg-[var(--bg-primary)] text-[var(--text-primary)]"
           />
         </div>
         <label className="flex items-center gap-1.5 mt-1.5 cursor-pointer">
@@ -1254,9 +1261,9 @@ function AdvancedFilterPanel({
             type="checkbox"
             checked={filters.hasDueDate}
             onChange={(e) => onFiltersChange({ ...filters, hasDueDate: e.target.checked })}
-            className="rounded border-gray-300"
+            className="rounded border-[var(--border-secondary)]"
           />
-          <span className="text-xs text-gray-600">Has due date</span>
+          <span className="text-xs text-[var(--text-secondary)]">{t('filterHasDueDate')}</span>
         </label>
       </div>
     </div>
@@ -1283,6 +1290,8 @@ function SwimlaneBoard({
   onToggleSwimlane: (id: string) => void;
   onAddSwimlane: (title: string) => void;
 }) {
+  const { t } = useTranslation('board');
+  const { t: tc } = useTranslation('common');
   const [addingLane, setAddingLane] = useState(false);
   const [newLaneTitle, setNewLaneTitle] = useState('');
 
@@ -1316,14 +1325,14 @@ function SwimlaneBoard({
   return (
     <div className="overflow-auto">
       {/* Column header row */}
-      <div className="flex sticky top-0 z-10 bg-white border-b">
-        <div className="w-40 flex-shrink-0 px-3 py-2 font-medium text-sm text-gray-500 border-r">
-          Swimlane
+      <div className="flex sticky top-0 z-10 bg-[var(--bg-primary)] border-b border-[var(--border-primary)]">
+        <div className="w-40 flex-shrink-0 px-3 py-2 font-medium text-sm text-[var(--text-secondary)] border-r border-[var(--border-primary)]">
+          {t('swimlanes')}
         </div>
         {columns.map((col) => (
           <div
             key={col.id}
-            className="w-60 flex-shrink-0 px-3 py-2 font-medium text-sm text-gray-700 border-r"
+            className="w-60 flex-shrink-0 px-3 py-2 font-medium text-sm text-[var(--text-primary)] border-r border-[var(--border-primary)]"
           >
             <div className="flex items-center gap-2">
               {col.color && (
@@ -1344,18 +1353,18 @@ function SwimlaneBoard({
         const isCollapsed = collapsedSwimlanes.has(lane.id);
 
         return (
-          <div key={lane.id} className="border-b">
+          <div key={lane.id} className="border-b border-[var(--border-primary)]">
             <div className="flex">
               {/* Swimlane row header */}
-              <div className="w-40 flex-shrink-0 px-3 py-2 bg-gray-50 border-r flex items-center gap-2">
+              <div className="w-40 flex-shrink-0 px-3 py-2 bg-[var(--bg-secondary)] border-r border-[var(--border-primary)] flex items-center gap-2">
                 <button
                   onClick={() => onToggleSwimlane(lane.id)}
-                  className="text-gray-400 hover:text-gray-600 text-xs"
+                  className="text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] text-xs"
                 >
                   {isCollapsed ? '\u25B6' : '\u25BC'}
                 </button>
-                <span className="text-sm font-medium text-gray-700 truncate">{lane.title}</span>
-                <span className="text-xs text-gray-400">({laneCards.length})</span>
+                <span className="text-sm font-medium text-[var(--text-primary)] truncate">{lane.title}</span>
+                <span className="text-xs text-[var(--text-tertiary)]">({laneCards.length})</span>
               </div>
 
               {!isCollapsed &&
@@ -1374,8 +1383,8 @@ function SwimlaneBoard({
                         <div
                           ref={provided.innerRef}
                           {...provided.droppableProps}
-                          className={`w-60 flex-shrink-0 border-r p-1.5 min-h-[4rem] ${
-                            snapshot.isDraggingOver ? 'bg-blue-50' : 'bg-white'
+                          className={`w-60 flex-shrink-0 border-r border-[var(--border-primary)] p-1.5 min-h-[4rem] ${
+                            snapshot.isDraggingOver ? 'bg-[var(--accent-light)]' : 'bg-[var(--bg-primary)]'
                           }`}
                         >
                           {cellCards.map((card, index) => (
@@ -1386,16 +1395,12 @@ function SwimlaneBoard({
                                   {...provided.draggableProps}
                                   {...provided.dragHandleProps}
                                   onClick={() => onCardClick(card.id)}
-                                  className={`bg-white rounded shadow-sm border p-2 mb-1.5 cursor-grab text-xs ${
-                                    snapshot.isDragging
-                                      ? 'shadow-lg rotate-1'
-                                      : 'hover:shadow-md'
-                                  }`}
+                                  className={`kanban-card p-2 mb-1.5 cursor-grab text-xs ${snapshot.isDragging ? 'kanban-card--dragging' : ''}`}
                                 >
-                                  <p className="font-medium text-gray-900 leading-snug">
+                                  <p className="font-medium text-[var(--text-primary)] leading-snug">
                                     {card.title}
                                   </p>
-                                  <span className="text-gray-400">
+                                  <span className="text-[var(--text-tertiary)]">
                                     KF-{String(card.cardNumber).padStart(3, '0')}
                                   </span>
                                 </div>
@@ -1410,8 +1415,8 @@ function SwimlaneBoard({
                 })}
 
               {isCollapsed && (
-                <div className="flex-1 bg-gray-50 px-3 py-1 text-xs text-gray-400 flex items-center">
-                  {laneCards.length} cards - Click arrow to expand
+                <div className="flex-1 bg-[var(--bg-secondary)] px-3 py-1 text-xs text-[var(--text-tertiary)] flex items-center">
+                  {laneCards.length} {t('swimlaneCollapsedHint')}
                 </div>
               )}
             </div>
@@ -1436,30 +1441,30 @@ function SwimlaneBoard({
             <input
               value={newLaneTitle}
               onChange={(e) => setNewLaneTitle(e.target.value)}
-              placeholder="Swimlane title..."
-              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder={t('swimlaneTitlePlaceholder')}
+              className="px-3 py-1.5 border border-[var(--border-secondary)] rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-[var(--bg-primary)] text-[var(--text-primary)]"
               autoFocus
             />
             <button
               type="submit"
               className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
             >
-              Add
+              {tc('add')}
             </button>
             <button
               type="button"
               onClick={() => setAddingLane(false)}
-              className="text-sm text-gray-500"
+              className="text-sm text-[var(--text-secondary)]"
             >
-              Cancel
+              {tc('cancel')}
             </button>
           </form>
         ) : (
           <button
             onClick={() => setAddingLane(true)}
-            className="text-sm text-gray-500 hover:text-gray-700"
+            className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
-            + Add swimlane
+            + {t('addSwimlane')}
           </button>
         )}
       </div>
@@ -1485,26 +1490,28 @@ function DeleteColumnModal({
   onCancel: () => void;
   isPending: boolean;
 }) {
+  const { t } = useTranslation('board');
+  const { t: tc } = useTranslation('common');
   const [targetColumnId, setTargetColumnId] = useState('');
   const otherColumns = columns.filter((c) => c.id !== columnId);
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          Delete column "{columnTitle}"
+      <div className="bg-[var(--bg-primary)] rounded-lg shadow-xl p-6 w-full max-w-md">
+        <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">
+          {t('deleteColumnTitle', { title: columnTitle })}
         </h3>
         {hasCards ? (
           <>
-            <p className="text-sm text-gray-600 mb-4">
-              This column has cards. Where should they be moved?
+            <p className="text-sm text-[var(--text-secondary)] mb-4">
+              {t('deleteColumnHasCards')}
             </p>
             <select
               value={targetColumnId}
               onChange={(e) => setTargetColumnId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-[var(--border-secondary)] rounded-md text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-[var(--bg-primary)] text-[var(--text-primary)]"
             >
-              <option value="">Select a column...</option>
+              <option value="">{t('deleteColumnSelectTarget')}</option>
               {otherColumns.map((col) => (
                 <option key={col.id} value={col.id}>
                   {col.title}
@@ -1513,20 +1520,20 @@ function DeleteColumnModal({
             </select>
           </>
         ) : (
-          <p className="text-sm text-gray-600 mb-4">
-            This column has no cards and will be permanently deleted.
+          <p className="text-sm text-[var(--text-secondary)] mb-4">
+            {t('deleteColumnNoCards')}
           </p>
         )}
         <div className="flex justify-end gap-2">
-          <button onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">
-            Cancel
+          <button onClick={onCancel} className="px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+            {tc('cancel')}
           </button>
           <button
             onClick={() => onConfirm(hasCards ? targetColumnId || undefined : undefined)}
             disabled={isPending || (hasCards && !targetColumnId)}
             className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 disabled:opacity-50"
           >
-            {isPending ? 'Deleting...' : 'Delete'}
+            {isPending ? tc('loading') : tc('delete')}
           </button>
         </div>
       </div>
@@ -1547,13 +1554,13 @@ function CollapsedColumn({
 }) {
   return (
     <div
-      className="flex flex-col bg-gray-100 rounded-lg h-full items-center"
+      className="flex flex-col bg-[var(--bg-tertiary)] rounded-lg h-full items-center"
       style={column.color ? { borderTop: `3px solid ${column.color}` } : {}}
     >
       <div {...dragHandleProps} className="w-full px-1 py-2 flex justify-center cursor-grab">
         <button
           onClick={onExpand}
-          className="text-gray-400 hover:text-gray-600 text-xs"
+          className="text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] text-xs"
           title="Expand column"
         >
           &raquo;
@@ -1571,13 +1578,13 @@ function CollapsedColumn({
         )}
       </Droppable>
       <div
-        className="py-2 text-xs font-medium text-gray-500"
+        className="py-2 text-xs font-medium text-[var(--text-secondary)]"
         style={{ writingMode: 'vertical-rl' }}
       >
         {column.title}
       </div>
       <div className="pb-2">
-        <span className="text-xs bg-gray-200 text-gray-600 rounded-full w-5 h-5 flex items-center justify-center">
+        <span className="text-xs bg-[var(--bg-secondary)] text-[var(--text-secondary)] rounded-full w-5 h-5 flex items-center justify-center">
           {cardCount}
         </span>
       </div>
@@ -1597,6 +1604,8 @@ function ColumnSettingsMenu({
   onDelete: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation('board');
+  const { t: tc } = useTranslation('common');
   const [tab, setTab] = useState<'main' | 'color'>('main');
   const [renameValue, setRenameValue] = useState(column.title);
   const [wipValue, setWipValue] = useState(column.wipLimit != null ? String(column.wipLimit) : '');
@@ -1647,16 +1656,16 @@ function ColumnSettingsMenu({
   return (
     <div
       ref={menuRef}
-      className="absolute right-0 top-full mt-1 z-30 bg-white rounded-lg shadow-lg border border-gray-200 w-56"
+      className="dropdown-menu absolute right-0 top-full mt-1 z-30 w-56"
       onClick={(e) => e.stopPropagation()}
     >
       {tab === 'color' ? (
         <div className="p-3">
           <div className="flex items-center gap-2 mb-3">
-            <button onClick={() => setTab('main')} className="text-gray-400 hover:text-gray-600 text-xs">
+            <button onClick={() => setTab('main')} className="text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] text-xs">
               &larr;
             </button>
-            <span className="text-sm font-medium text-gray-700">Set color</span>
+            <span className="text-sm font-medium text-[var(--text-primary)]">{t('columnSetColor')}</span>
           </div>
           <div className="grid grid-cols-4 gap-2">
             {COLUMN_PRESET_COLORS.map(({ label, value }) => (
@@ -1674,7 +1683,7 @@ function ColumnSettingsMenu({
             {/* Clear color */}
             <button
               onClick={() => handleColorSelect(null)}
-              className="w-8 h-8 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-500 text-xs"
+              className="w-8 h-8 rounded-full border-2 border-[var(--border-secondary)] flex items-center justify-center text-[var(--text-tertiary)] hover:border-[var(--border-primary)] text-xs"
               title="No color"
             >
               &times;
@@ -1684,8 +1693,8 @@ function ColumnSettingsMenu({
       ) : (
         <div className="py-1">
           {/* Rename */}
-          <div className="px-3 py-2 border-b border-gray-100">
-            <p className="text-xs text-gray-500 mb-1">Rename</p>
+          <div className="px-3 py-2 border-b border-[var(--border-primary)]">
+            <p className="text-xs text-[var(--text-secondary)] mb-1">{t('columnRename')}</p>
             <div className="flex gap-1">
               <input
                 type="text"
@@ -1695,14 +1704,14 @@ function ColumnSettingsMenu({
                   if (e.key === 'Enter') handleRename();
                   if (e.key === 'Escape') onClose();
                 }}
-                className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 px-2 py-1 border border-[var(--border-secondary)] rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-[var(--bg-primary)] text-[var(--text-primary)]"
                 autoFocus
               />
               <button
                 onClick={handleRename}
                 className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
               >
-                Save
+                {tc('save')}
               </button>
             </div>
           </div>
@@ -1710,18 +1719,18 @@ function ColumnSettingsMenu({
           {/* Color */}
           <button
             onClick={() => setTab('color')}
-            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+            className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] flex items-center gap-2"
           >
             <span
-              className="w-3 h-3 rounded-full border border-gray-300"
+              className="w-3 h-3 rounded-full border border-[var(--border-secondary)]"
               style={column.color ? { backgroundColor: column.color } : { backgroundColor: 'transparent' }}
             />
-            Set color
+            {t('columnSetColor')}
           </button>
 
           {/* WIP limit */}
-          <div className="px-3 py-2 border-t border-gray-100">
-            <p className="text-xs text-gray-500 mb-1">WIP limit (blank to remove)</p>
+          <div className="px-3 py-2 border-t border-[var(--border-primary)]">
+            <p className="text-xs text-[var(--text-secondary)] mb-1">{t('columnWipLimit')}</p>
             <div className="flex gap-1">
               <input
                 type="number"
@@ -1729,49 +1738,49 @@ function ColumnSettingsMenu({
                 value={wipValue}
                 onChange={(e) => setWipValue(e.target.value)}
                 placeholder="e.g. 5"
-                className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 px-2 py-1 border border-[var(--border-secondary)] rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-[var(--bg-primary)] text-[var(--text-primary)]"
                 onKeyDown={(e) => { if (e.key === 'Enter') handleWipSave(); }}
               />
               <button
                 onClick={handleWipSave}
                 className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
               >
-                Set
+                {tc('save')}
               </button>
             </div>
           </div>
 
           {/* Description */}
-          <div className="px-3 py-2 border-t border-gray-100">
-            <p className="text-xs text-gray-500 mb-1">Description</p>
+          <div className="px-3 py-2 border-t border-[var(--border-primary)]">
+            <p className="text-xs text-[var(--text-secondary)] mb-1">{t('columnDescription')}</p>
             <textarea
               value={descValue}
               onChange={(e) => setDescValue(e.target.value)}
-              placeholder="Column description..."
+              placeholder={t('columnDescriptionPlaceholder')}
               rows={2}
-              className="w-full px-2 py-1 border border-gray-300 rounded text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full px-2 py-1 border border-[var(--border-secondary)] rounded text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 bg-[var(--bg-primary)] text-[var(--text-primary)]"
             />
             <button
               onClick={handleDescSave}
-              className="mt-1 w-full text-xs text-center py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded"
+              className="mt-1 w-full text-xs text-center py-1 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] rounded"
             >
-              Save description
+              {t('columnSaveDescription')}
             </button>
           </div>
 
           {/* Delete */}
-          <div className="border-t border-gray-100">
+          <div className="border-t border-[var(--border-primary)]">
             <button
               onClick={() => {
                 onClose();
                 onDelete();
               }}
-              className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-sm text-[var(--error)] hover:bg-[var(--bg-hover)] flex items-center gap-2"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
-              Delete column
+              {tc('delete')}
             </button>
           </div>
         </div>
@@ -1797,6 +1806,7 @@ function KanbanColumn({
   cardEditors,
   boardMembers,
   currentUserId,
+  activeCardId,
 }: {
   column: Column;
   cards: Card[];
@@ -1814,7 +1824,10 @@ function KanbanColumn({
   cardEditors: Record<string, string>;
   boardMembers: Array<{ userId: string; user: { id: string; name: string; avatarUrl: string | null } }>;
   currentUserId: string | undefined;
+  activeCardId?: string | null;
 }) {
+  const { t } = useTranslation('board');
+  const { t: tc } = useTranslation('common');
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1843,21 +1856,27 @@ function KanbanColumn({
 
   return (
     <div
-      className={`flex flex-col rounded-lg h-full ${isOverWip ? 'bg-red-50 ring-2 ring-red-200' : 'bg-gray-100'}`}
-      style={column.color ? { borderTop: `3px solid ${column.color}` } : {}}
+      className="flex flex-col rounded-lg h-full bg-[var(--bg-tertiary)]"
+      style={
+        isOverWip
+          ? { borderTop: `3px solid var(--error)` }
+          : column.color
+          ? { borderTop: `3px solid ${column.color}` }
+          : {}
+      }
     >
       <div
         {...dragHandleProps}
-        className={`px-3 py-2 flex items-center justify-between cursor-grab ${isOverWip ? 'bg-red-100 rounded-t-lg' : ''}`}
+        className="px-3 py-2 flex items-center justify-between cursor-grab"
       >
         <div className="flex items-center gap-2">
-          <h3 className="font-medium text-sm text-gray-700">{column.title}</h3>
-          <span className="text-xs text-gray-400">{displayCount}</span>
+          <h3 className="font-medium text-sm text-[var(--text-primary)]">{column.title}</h3>
+          <span className="text-xs text-[var(--text-tertiary)]">{displayCount}</span>
         </div>
         <div className="relative flex items-center gap-1">
           {column.wipLimit && (
             <span
-              className={`text-xs px-1.5 py-0.5 rounded ${isOverWip ? 'bg-red-200 text-red-700 font-semibold' : 'bg-gray-200 text-gray-500'}`}
+              className={`text-xs px-1.5 py-0.5 rounded ${isOverWip ? 'bg-[var(--error-light)] text-[var(--error)] font-semibold' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'}`}
             >
               {isOverWip && (
                 <svg
@@ -1883,7 +1902,7 @@ function KanbanColumn({
               e.stopPropagation();
               setSettingsOpen((v) => !v);
             }}
-            className="text-gray-300 hover:text-gray-500 transition-colors"
+            className="text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
             title="Column settings"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1898,7 +1917,7 @@ function KanbanColumn({
           </button>
           <button
             onClick={onCollapse}
-            className="text-gray-400 hover:text-gray-600 text-xs ml-1"
+            className="text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] text-xs ml-1"
             title="Collapse column"
           >
             &laquo;
@@ -1921,7 +1940,7 @@ function KanbanColumn({
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className={`flex-1 overflow-y-auto px-2 pb-2 min-h-[2rem] ${snapshot.isDraggingOver ? 'bg-blue-50' : ''}`}
+            className={`flex-1 overflow-y-auto px-2 pb-2 min-h-[2rem] ${snapshot.isDraggingOver ? 'bg-[var(--accent-light)]/60' : ''}`}
           >
             {cards.map((card, index) => {
               // AG-001: Card aging
@@ -1938,9 +1957,24 @@ function KanbanColumn({
               // MS-001: Selected state
               const isSelected = selectedCardIds.has(card.id);
 
+              // DS v2.0: Card state computation (snapshot-independent)
+              const isOverdueCard = card.dueDate && column.columnType !== 'DONE' && new Date(card.dueDate) < new Date();
+              const isDetailOpen = card.id === activeCardId;
+
               return (
               <Draggable key={card.id} draggableId={card.id} index={index}>
-                {(provided, snapshot) => (
+                {(provided, snapshot) => {
+                  // DS v2.0: Build card state className (uses draggable snapshot)
+                  let cardStateClass = '';
+                  if (snapshot.isDragging) {
+                    cardStateClass = 'kanban-card--dragging';
+                  } else if (isDetailOpen) {
+                    cardStateClass = 'kanban-card--selected';
+                  } else if (isOverdueCard) {
+                    cardStateClass = 'kanban-card--overdue';
+                  }
+
+                  return (
                   <div
                     ref={provided.innerRef}
                     {...provided.draggableProps}
@@ -1954,11 +1988,10 @@ function KanbanColumn({
                         onCardClick(card.id);
                       }
                     }}
-                    className={`bg-white rounded-lg shadow-sm border p-3 mb-2 cursor-grab
-                      ${snapshot.isDragging ? 'shadow-lg rotate-2' : 'hover:shadow-md'}
+                    className={`kanban-card ${cardStateClass} p-3 mb-2 cursor-grab
                       ${agingClass}
                       ${isSelected ? 'ring-2 ring-blue-500' : ''}
-                      ${isEditedByOther ? 'cursor-not-allowed border-amber-400 ring-1 ring-amber-300' : ''}
+                      ${isEditedByOther ? 'cursor-not-allowed !border !border-amber-400 ring-1 ring-amber-300' : ''}
                     `}
                   >
                     {/* PR-001: Editing indicator */}
@@ -1967,7 +2000,7 @@ function KanbanColumn({
                         <div className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs font-medium">
                           {editorName?.charAt(0).toUpperCase() ?? '?'}
                         </div>
-                        <span className="text-xs text-amber-600">Editing: {editorName}</span>
+                        <span className="text-xs text-amber-600">{t('cardEditing', { name: editorName })}</span>
                       </div>
                     )}
                     <div className="flex items-start gap-2">
@@ -1981,18 +2014,18 @@ function KanbanColumn({
                             {selectedCardIds.size} cards
                           </span>
                         )}
-                        <p className="text-sm font-medium text-gray-900 leading-snug">
+                        <p className="text-sm font-medium text-[var(--text-primary)] leading-snug">
                           {card.title}
                         </p>
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-[var(--text-tertiary)]">
                             KF-{String(card.cardNumber).padStart(3, '0')}
                           </span>
                           {/* AG-001: Clock icon for stale cards */}
                           {showClock && (
                             <span title={`${agingDays} days since last update`}>
                               <svg
-                                className="w-3 h-3 text-gray-400"
+                                className="w-3 h-3 text-[var(--text-tertiary)]"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -2025,7 +2058,7 @@ function KanbanColumn({
                             {card.assignees.map((a) => (
                               <div
                                 key={a.user.id}
-                                className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium ring-2 ring-white"
+                                className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium ring-2 ring-[var(--bg-primary)]"
                                 title={a.user.name}
                               >
                                 {a.user.name.charAt(0).toUpperCase()}
@@ -2038,7 +2071,7 @@ function KanbanColumn({
                           (card._count.comments > 0 ||
                             card._count.checklists > 0 ||
                             card._count.attachments > 0) && (
-                            <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                            <div className="flex items-center gap-3 mt-2 text-xs text-[var(--text-tertiary)]">
                               {card._count.comments > 0 && (
                                 <span
                                   className="flex items-center gap-0.5"
@@ -2106,12 +2139,13 @@ function KanbanColumn({
                           )}
                         {/* AG-001: Aging footer label */}
                         {agingLabel && (
-                          <p className="text-xs text-gray-300 mt-1.5">{agingLabel}</p>
+                          <p className="text-xs text-[var(--text-tertiary)] mt-1.5">{agingLabel}</p>
                         )}
                       </div>
                     </div>
                   </div>
-                )}
+                  );
+                }}
               </Draggable>
               );
             })}
@@ -2126,8 +2160,8 @@ function KanbanColumn({
             <textarea
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter a title..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder={t('cardTitlePlaceholder')}
+              className="w-full px-3 py-2 border border-[var(--border-secondary)] rounded-md text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 bg-[var(--bg-primary)] text-[var(--text-primary)]"
               rows={2}
               autoFocus
               onKeyDown={(e) => {
@@ -2139,23 +2173,23 @@ function KanbanColumn({
                 type="submit"
                 className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
               >
-                Add
+                {tc('add')}
               </button>
               <button
                 type="button"
                 onClick={() => setIsAdding(false)}
-                className="px-3 py-1 text-gray-500 hover:text-gray-700 text-sm"
+                className="px-3 py-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm"
               >
-                Cancel
+                {tc('cancel')}
               </button>
             </div>
           </form>
         ) : (
           <button
             onClick={() => setIsAdding(true)}
-            className="w-full text-left px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-200 rounded"
+            className="w-full text-left px-3 py-1.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] rounded"
           >
-            + Add a card
+            + {t('addCard')}
           </button>
         )}
       </div>
@@ -2164,6 +2198,8 @@ function KanbanColumn({
 }
 
 function AddColumnButton({ onAdd }: { onAdd: (title: string) => void }) {
+  const { t } = useTranslation('board');
+  const { t: tc } = useTranslation('common');
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState('');
 
@@ -2179,13 +2215,13 @@ function AddColumnButton({ onAdd }: { onAdd: (title: string) => void }) {
   if (isAdding) {
     return (
       <div className="w-72 flex-shrink-0">
-        <form onSubmit={handleAdd} className="bg-gray-100 rounded-lg p-3">
+        <form onSubmit={handleAdd} className="bg-[var(--bg-tertiary)] rounded-lg p-3">
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Column title..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder={t('columnTitlePlaceholder')}
+            className="w-full px-3 py-2 border border-[var(--border-secondary)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-[var(--bg-primary)] text-[var(--text-primary)]"
             autoFocus
             onKeyDown={(e) => {
               if (e.key === 'Escape') setIsAdding(false);
@@ -2196,14 +2232,14 @@ function AddColumnButton({ onAdd }: { onAdd: (title: string) => void }) {
               type="submit"
               className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
             >
-              Add
+              {tc('add')}
             </button>
             <button
               type="button"
               onClick={() => setIsAdding(false)}
-              className="px-3 py-1 text-gray-500 hover:text-gray-700 text-sm"
+              className="px-3 py-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm"
             >
-              Cancel
+              {tc('cancel')}
             </button>
           </div>
         </form>
@@ -2215,9 +2251,9 @@ function AddColumnButton({ onAdd }: { onAdd: (title: string) => void }) {
     <div className="w-72 flex-shrink-0">
       <button
         onClick={() => setIsAdding(true)}
-        className="w-full text-left px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm text-gray-500 font-medium"
+        className="w-full text-left px-4 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] rounded-lg text-sm text-[var(--text-secondary)] font-medium"
       >
-        + Add column
+        + {t('addColumn')}
       </button>
     </div>
   );

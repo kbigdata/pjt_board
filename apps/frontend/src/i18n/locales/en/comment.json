@@ -1,0 +1,21 @@
+{
+  "placeholder": "Write a comment...",
+  "reply": "Reply",
+  "replyPlaceholder": "Write a reply...",
+  "thread": "Thread",
+  "replies": "{{count}} replies",
+  "relatedThreads": "Related Threads",
+  "pin": "Pin",
+  "unpin": "Unpin",
+  "pinned": "Pinned",
+  "edit": "Edit",
+  "delete": "Delete",
+  "copyLink": "Copy Link",
+  "reaction": "Add Reaction",
+  "alsoSendTo": "Also show in Activity",
+  "send": "Send",
+  "edited": "(edited)",
+  "deleted": "This comment has been deleted",
+  "noComments": "No comments yet",
+  "cardDetails": "Card Details"
+}

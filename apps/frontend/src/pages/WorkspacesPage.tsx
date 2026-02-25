@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { workspacesApi } from '@/api/workspaces';
 
 export default function WorkspacesPage() {
@@ -8,6 +9,8 @@ export default function WorkspacesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const { t } = useTranslation('board');
+  const { t: tc } = useTranslation('common');
 
   const { data: workspaces, isLoading } = useQuery({
     queryKey: ['workspaces'],
@@ -32,7 +35,7 @@ export default function WorkspacesPage() {
   if (isLoading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="text-gray-500">Loading workspaces...</div>
+        <div className="text-[var(--text-secondary)]">{tc('loading')}</div>
       </div>
     );
   }
@@ -40,24 +43,24 @@ export default function WorkspacesPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">My Workspaces</h2>
+        <h2 className="text-xl font-semibold text-[var(--text-primary)]">{t('workspace.myWorkspaces')}</h2>
         <button
           onClick={() => setShowCreate(true)}
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
         >
-          New Workspace
+          {t('workspace.newWorkspace')}
         </button>
       </div>
 
       {showCreate && (
-        <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+        <div className="bg-[var(--bg-primary)] rounded-lg shadow-sm border border-[var(--border-primary)] p-4 mb-6">
           <form onSubmit={handleCreate} className="space-y-3">
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Workspace name"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder={t('workspace.namePlaceholder')}
+              className="w-full px-3 py-2 border border-[var(--border-secondary)] rounded-md bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
               autoFocus
             />
@@ -65,8 +68,8 @@ export default function WorkspacesPage() {
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Description (optional)"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder={t('workspace.descriptionPlaceholder')}
+              className="w-full px-3 py-2 border border-[var(--border-secondary)] rounded-md bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <div className="flex gap-2">
               <button
@@ -74,14 +77,14 @@ export default function WorkspacesPage() {
                 disabled={createMutation.isPending}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm"
               >
-                Create
+                {tc('save')}
               </button>
               <button
                 type="button"
                 onClick={() => setShowCreate(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
+                className="px-4 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm"
               >
-                Cancel
+                {tc('cancel')}
               </button>
             </div>
           </form>
@@ -89,8 +92,8 @@ export default function WorkspacesPage() {
       )}
 
       {!workspaces?.length ? (
-        <div className="text-center py-12 text-gray-500">
-          <p>No workspaces yet. Create one to get started.</p>
+        <div className="text-center py-12 text-[var(--text-secondary)]">
+          <p>{t('workspace.empty')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -98,16 +101,16 @@ export default function WorkspacesPage() {
             <Link
               key={ws.id}
               to={`/workspaces/${ws.id}`}
-              className="bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow"
+              className="bg-[var(--bg-primary)] rounded-lg shadow-sm border border-[var(--border-primary)] p-4 hover:shadow-md transition-shadow"
             >
-              <h3 className="font-semibold text-gray-900">{ws.name}</h3>
+              <h3 className="font-semibold text-[var(--text-primary)]">{ws.name}</h3>
               {ws.description && (
-                <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                <p className="text-sm text-[var(--text-secondary)] mt-1 line-clamp-2">
                   {ws.description}
                 </p>
               )}
-              <div className="flex items-center gap-3 mt-3 text-xs text-gray-400">
-                <span>{ws.memberCount ?? 0} members</span>
+              <div className="flex items-center gap-3 mt-3 text-xs text-[var(--text-tertiary)]">
+                <span>{ws.memberCount ?? 0} {t('members')}</span>
                 <span className="uppercase">{ws.myRole}</span>
               </div>
             </Link>

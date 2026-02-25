@@ -1,0 +1,18 @@
+{
+  "title": "Dashboard",
+  "charts": "Charts",
+  "metrics": "Metrics",
+  "export": "Export",
+  "cards": {
+    "totalCards": "Total Cards",
+    "completedCards": "Completed Cards",
+    "overdueCards": "Overdue Cards",
+    "inProgress": "In Progress"
+  },
+  "period": {
+    "today": "Today",
+    "week": "This Week",
+    "month": "This Month",
+    "custom": "Custom Range"
+  }
+}

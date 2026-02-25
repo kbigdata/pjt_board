@@ -379,6 +379,10 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`board:${boardId}`).emit('swimlaneMoved', swimlane);
   }
 
+  emitReplyAdded(boardId: string, reply: Record<string, unknown>) {
+    this.server.to(`board:${boardId}`).emit('replyAdded', reply);
+  }
+
   async emitCommentAdded(
     boardId: string,
     userId: string,

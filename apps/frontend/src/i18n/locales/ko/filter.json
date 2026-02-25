@@ -1,0 +1,15 @@
+{
+  "title": "필터",
+  "label": "라벨",
+  "priority": "우선순위",
+  "assignee": "담당자",
+  "dueDate": "마감일",
+  "status": "상태",
+  "search": "검색",
+  "clearAll": "필터 초기화",
+  "apply": "적용",
+  "noFilter": "필터 없음",
+  "savedFilters": "저장된 필터",
+  "saveFilter": "필터 저장",
+  "filterName": "필터 이름"
+}

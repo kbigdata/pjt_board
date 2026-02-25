@@ -45,4 +45,17 @@ export const workspacesApi = {
 
   delete: (id: string) =>
     apiClient.delete(`/workspaces/${id}`).then((r) => r.data),
+
+  addMember: (workspaceId: string, userId: string, role?: string) =>
+    apiClient
+      .post<WorkspaceMember>(`/workspaces/${workspaceId}/members`, { userId, role })
+      .then((r) => r.data),
+
+  updateMemberRole: (workspaceId: string, userId: string, role: string) =>
+    apiClient
+      .patch<WorkspaceMember>(`/workspaces/${workspaceId}/members/${userId}`, { role })
+      .then((r) => r.data),
+
+  removeMember: (workspaceId: string, userId: string) =>
+    apiClient.delete(`/workspaces/${workspaceId}/members/${userId}`).then((r) => r.data),
 };

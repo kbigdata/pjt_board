@@ -67,7 +67,7 @@ export default function NotificationBell() {
     <div ref={containerRef} className="relative">
       <button
         onClick={() => setIsOpen((prev) => !prev)}
-        className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+        className="relative p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] rounded-md transition-colors"
         aria-label="Notifications"
       >
         <svg
@@ -92,15 +92,15 @@ export default function NotificationBell() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-1 w-80 bg-white border border-gray-200 shadow-lg rounded-lg z-50 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
+        <div className="dropdown-menu absolute right-0 mt-1 w-80 z-50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-[var(--border-primary)] flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)]">Notifications</h3>
             <div className="flex items-center gap-2">
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllRead}
                   disabled={markAllAsRead.isPending}
-                  className="text-xs text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                  className="text-xs text-[var(--accent)] hover:text-[var(--accent-hover)] disabled:opacity-50"
                 >
                   Mark all read
                 </button>
@@ -110,7 +110,7 @@ export default function NotificationBell() {
                   setIsOpen(false);
                   setSettingsOpen(true);
                 }}
-                className="text-gray-400 hover:text-gray-600 p-0.5 rounded"
+                className="text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] p-0.5 rounded"
                 title="Notification settings"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -133,13 +133,13 @@ export default function NotificationBell() {
 
           <div className="max-h-96 overflow-y-auto">
             {isLoading ? (
-              <div className="px-4 py-6 text-sm text-gray-400 text-center">Loading...</div>
+              <div className="px-4 py-6 text-sm text-[var(--text-tertiary)] text-center">Loading...</div>
             ) : !notifications || notifications.length === 0 ? (
-              <div className="px-4 py-6 text-sm text-gray-400 text-center">
+              <div className="px-4 py-6 text-sm text-[var(--text-tertiary)] text-center">
                 No notifications yet.
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-[var(--border-primary)]">
                 {notifications.map((notification) => (
                   <NotificationItem
                     key={notification.id}
@@ -170,21 +170,21 @@ function NotificationItem({
   return (
     <button
       onClick={() => onClick(notification)}
-      className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-start gap-3 ${
-        !notification.isRead ? 'bg-blue-50/40' : ''
+      className={`w-full text-left px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors flex items-start gap-3 ${
+        !notification.isRead ? 'bg-[var(--accent-light)]' : ''
       }`}
     >
       <div className="flex-shrink-0 mt-1">
         {!notification.isRead ? (
-          <span className="block w-2 h-2 rounded-full bg-blue-500" />
+          <span className="block w-2 h-2 rounded-full bg-[var(--accent)]" />
         ) : (
           <span className="block w-2 h-2 rounded-full bg-transparent" />
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">{notification.title}</p>
-        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{notification.message}</p>
-        <p className="text-xs text-gray-400 mt-1">{timeAgo(notification.createdAt)}</p>
+        <p className="text-sm font-medium text-[var(--text-primary)] truncate">{notification.title}</p>
+        <p className="text-xs text-[var(--text-secondary)] mt-0.5 line-clamp-2">{notification.message}</p>
+        <p className="text-xs text-[var(--text-tertiary)] mt-1">{timeAgo(notification.createdAt)}</p>
       </div>
     </button>
   );

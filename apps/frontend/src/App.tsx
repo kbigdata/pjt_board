@@ -13,6 +13,7 @@ import BoardPage from '@/pages/BoardPage';
 import AutomationPage from '@/pages/AutomationPage';
 import ReportPage from '@/pages/ReportPage';
 import DashboardPage from '@/pages/DashboardPage';
+import WorkspaceSettingsPage from '@/pages/WorkspaceSettingsPage';
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
 import AdminUsersPage from '@/pages/admin/AdminUsersPage';
 import AdminWorkspacesPage from '@/pages/admin/AdminWorkspacesPage';
@@ -49,6 +50,7 @@ function AppRoutes() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<WorkspacesPage />} />
         <Route path="/workspaces/:workspaceId" element={<WorkspaceDetailPage />} />
+        <Route path="/workspaces/:workspaceId/settings" element={<WorkspaceSettingsPage />} />
         <Route path="/boards/:boardId" element={<BoardPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/boards/:boardId/automations" element={<AutomationPage />} />

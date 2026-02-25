@@ -1,0 +1,15 @@
+{
+  "title": "Filter",
+  "label": "Label",
+  "priority": "Priority",
+  "assignee": "Assignee",
+  "dueDate": "Due Date",
+  "status": "Status",
+  "search": "Search",
+  "clearAll": "Clear All",
+  "apply": "Apply",
+  "noFilter": "No Filter",
+  "savedFilters": "Saved Filters",
+  "saveFilter": "Save Filter",
+  "filterName": "Filter Name"
+}

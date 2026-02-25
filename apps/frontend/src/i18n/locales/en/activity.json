@@ -1,0 +1,11 @@
+{
+  "title": "Activity",
+  "all": "All",
+  "mentions": "Mentions",
+  "threads": "Threads",
+  "dueDate": "Due Dates",
+  "assigned": "Assigned",
+  "empty": "No activity yet",
+  "markAllRead": "Mark all read",
+  "loadMore": "Load more"
+}

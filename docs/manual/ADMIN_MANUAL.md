@@ -1,7 +1,7 @@
 # KanFlow 관리자 메뉴얼
 
-**버전**: 1.1.0
-**최종 업데이트**: 2026-02-24
+**버전**: 1.3.0
+**최종 업데이트**: 2026-02-25
 **대상**: KanFlow 자체 호스팅 서버 관리자
 
 ---
@@ -33,6 +33,7 @@
    - 5.1 [워크스페이스 생성](#51-워크스페이스-생성)
    - 5.2 [멤버 관리](#52-멤버-관리)
    - 5.3 [권한 체계 (OWNER / ADMIN / MEMBER)](#53-권한-체계-owner--admin--member)
+   - 5.4 [워크스페이스 설정 페이지 (UI)](#54-워크스페이스-설정-페이지-ui)
 6. [보드 관리](#6-보드-관리)
    - 6.1 [보드 생성 / 삭제 / 아카이브](#61-보드-생성--삭제--아카이브)
    - 6.2 [보드 즐겨찾기](#62-보드-즐겨찾기)
@@ -760,6 +761,96 @@ KanFlow는 워크스페이스와 보드 레벨에서 각각 역할 기반 접근
 | VIEWER | X | X | X | X |
 
 > **팁:** 워크스페이스 OWNER는 해당 워크스페이스 내 모든 보드에 자동으로 최상위 권한을 갖습니다. 보드별 멤버 초대는 별도로 관리됩니다.
+
+### 5.4 워크스페이스 설정 페이지 (UI)
+
+API 호출 없이 브라우저 UI에서 워크스페이스 기본 정보 수정, 멤버 초대·역할 변경·제거, 워크스페이스 삭제를 수행할 수 있습니다.
+
+**접근 방법**
+
+워크스페이스 상세 페이지 헤더 우측의 **Settings** (⚙) 버튼을 클릭합니다. OWNER 또는 ADMIN 역할을 가진 멤버에게 표시됩니다.
+
+![워크스페이스 상세 - Settings 버튼](screenshots/workspace-settings/01_workspace_detail_settings_button.png)
+
+---
+
+#### 일반(General) 탭
+
+![일반 탭](screenshots/workspace-settings/02_settings_general_tab.png)
+
+| 기능 | 사용 가능 역할 | 설명 |
+|------|:-------------:|------|
+| 이름 수정 | OWNER, ADMIN | Workspace Name 필드 편집 후 Save Changes 클릭 |
+| 설명 수정 | OWNER, ADMIN | Description 필드 편집 후 Save Changes 클릭 |
+| 워크스페이스 삭제 | OWNER | Danger Zone의 Delete Workspace 클릭 → 확인 대화상자 승인 |
+
+> **주의:** 워크스페이스 삭제는 소속된 모든 보드·컬럼·카드·첨부파일을 영구 삭제합니다. 복구할 수 없으므로 삭제 전 관련 데이터를 반드시 백업하십시오.
+
+---
+
+#### 멤버(Members) 탭
+
+![멤버 탭](screenshots/workspace-settings/03_settings_members_tab.png)
+
+**멤버 초대 (UI)**
+
+![멤버 검색 드롭다운](screenshots/workspace-settings/04_member_search_dropdown.png)
+
+1. **Add Member** 섹션의 입력란에 초대할 사용자의 이름 또는 이메일 일부를 입력합니다 (최소 2자 이상).
+2. 0.3초 debounce 후 `GET /users/search?q=` API가 호출되고 드롭다운에 검색 결과가 표시됩니다.
+   - 이미 멤버인 사용자는 **Already member** 표시와 함께 선택이 비활성화됩니다.
+3. 드롭다운에서 사용자를 선택합니다.
+4. 역할 드롭다운에서 부여할 역할을 선택합니다 (기본값: MEMBER).
+5. **Add** 버튼을 클릭하면 멤버 목록에 즉시 추가됩니다.
+
+**역할 변경 / 멤버 제거**
+
+| 작업 | 사용 가능 역할 | 비고 |
+|------|:-------------:|------|
+| 역할 변경 | OWNER | OWNER 자신의 역할은 변경 불가 |
+| 멤버 제거 | OWNER, ADMIN | OWNER 행의 Remove 버튼은 비활성화됨 |
+
+**역할별 UI 접근 요약**
+
+| 기능 | OWNER | ADMIN | MEMBER | VIEWER |
+|------|:-----:|:-----:|:------:|:------:|
+| 이름·설명 수정 | ✓ | ✓ | - | - |
+| 워크스페이스 삭제 | ✓ | - | - | - |
+| 멤버 초대 | ✓ | ✓ | - | - |
+| 역할 변경 | ✓ | - | - | - |
+| 멤버 제거 | ✓ | ✓ | - | - |
+
+> **참고:** MEMBER / VIEWER는 설정 페이지에 접근해도 이름·설명 필드가 읽기 전용으로 표시되며, 멤버 초대·수정 UI는 표시되지 않습니다.
+
+---
+
+## 5.5 UI 디자인 시스템 (테마 / 언어)
+
+KanFlow v2.0부터 프론트엔드에 다음 UI 시스템이 적용되어 있습니다. 서버 관리자가 알아야 할 참고 사항입니다.
+
+### 테마 시스템 (Dark Mode)
+
+- 사용자가 선택한 테마(Light/Dark/System)는 브라우저 `localStorage`의 `kanflow-theme` 키에 저장됩니다.
+- 테마 CSS 변수는 `apps/frontend/src/index.css`의 `:root` (라이트) 및 `[data-theme="dark"]` 블록에 정의되어 있습니다.
+- **FOUC(Flash Of Unstyled Content) 방지**: `index.html`의 인라인 스크립트가 페이지 로드 전에 `data-theme` 속성을 설정합니다.
+- 추가 커스텀 테마가 필요하면 `index.css`의 CSS 변수 블록을 수정하고 프론트엔드를 재빌드하세요.
+
+### 다국어 지원 (i18n)
+
+- 한국어(ko) / 영어(en) 두 가지 언어를 지원합니다.
+- 사용자가 선택한 언어는 브라우저 `localStorage`의 `kanflow-lang` 키에 저장됩니다.
+- 번역 파일 위치: `apps/frontend/src/i18n/locales/{ko,en}/` (14개 네임스페이스)
+- 번역 추가/수정 후 프론트엔드 재빌드가 필요합니다: `pnpm build`
+
+### 주요 UI 변경 (v2.0)
+
+| 변경 항목 | 이전 (v1.x) | 현재 (v2.0) |
+|-----------|------------|------------|
+| 레이아웃 | 상단 내비게이션 | 4패널 Slack 스타일 (NavBar + BoardSidebar + Main + DetailPanel) |
+| 카드 상세 | 전체화면 모달 | 우측 슬라이드 패널 (420px) |
+| 테마 | Light/Dark 토글 | Light / Dark / System 3모드 |
+| 언어 | 한국어 전용 | 한국어 / English 전환 가능 |
+| WIP 초과 | 전체 빨간 배경 | 상단 3px 빨간 테두리 |
 
 ---
 

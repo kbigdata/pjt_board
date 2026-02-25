@@ -2,7 +2,9 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { UpdateCommentDto } from './dto/update-comment.dto';
@@ -31,9 +33,22 @@ export class CommentService {
 
   async findAllByCardId(cardId: string) {
     return this.prisma.comment.findMany({
-      where: { cardId },
+      where: { cardId, parentCommentId: null },
       include: {
         author: { select: { id: true, name: true, avatarUrl: true } },
+        _count: { select: { replies: true } },
+        replies: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: {
+            author: { select: { id: true, name: true, avatarUrl: true } },
+          },
+        },
+        reactions: {
+          include: {
+            user: { select: { id: true, name: true } },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -79,6 +94,78 @@ export class CommentService {
       select: { cardId: true },
     });
     return comment?.cardId ?? null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Thread replies
+  // ---------------------------------------------------------------------------
+
+  async createReply(parentCommentId: string, userId: string, content: string) {
+    const parent = await this.prisma.comment.findUnique({
+      where: { id: parentCommentId },
+    });
+
+    if (!parent) {
+      throw new NotFoundException('Parent comment not found');
+    }
+
+    if (parent.parentCommentId !== null) {
+      throw new BadRequestException('Cannot reply to a reply');
+    }
+
+    return this.prisma.comment.create({
+      data: {
+        cardId: parent.cardId,
+        authorId: userId,
+        content,
+        parentCommentId,
+      },
+      include: {
+        author: { select: { id: true, name: true, avatarUrl: true } },
+      },
+    });
+  }
+
+  async getReplies(commentId: string) {
+    const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    return this.prisma.comment.findMany({
+      where: { parentCommentId: commentId },
+      include: {
+        author: { select: { id: true, name: true, avatarUrl: true } },
+        reactions: {
+          include: {
+            user: { select: { id: true, name: true, avatarUrl: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async togglePin(commentId: string, userId: string, boardRole: Role | null) {
+    const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    const isAuthor = comment.authorId === userId;
+    const isBoardAdmin = boardRole === Role.ADMIN || boardRole === Role.OWNER;
+
+    if (!isAuthor && !isBoardAdmin) {
+      throw new ForbiddenException('Only the comment author or board admin can pin comments');
+    }
+
+    return this.prisma.comment.update({
+      where: { id: commentId },
+      data: { isPinned: !comment.isPinned },
+      include: {
+        author: { select: { id: true, name: true, avatarUrl: true } },
+      },
+    });
   }
 
   // ---------------------------------------------------------------------------

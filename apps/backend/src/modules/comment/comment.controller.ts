@@ -101,6 +101,57 @@ export class CommentController {
   }
 
   // ---------------------------------------------------------------------------
+  // Thread replies
+  // ---------------------------------------------------------------------------
+
+  @Post('comments/:commentId/replies')
+  @ApiOperation({ summary: 'Add reply to a comment thread' })
+  @ApiParam({ name: 'commentId', description: 'Parent comment ID' })
+  @ApiResponse({ status: 201, description: 'Reply created' })
+  @ApiResponse({ status: 400, description: 'Cannot reply to a reply' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Parent comment not found' })
+  async createReply(
+    @CurrentUser() user: { id: string },
+    @Param('commentId') commentId: string,
+    @Body() dto: CreateCommentDto,
+  ) {
+    return this.commentService.createReply(commentId, user.id, dto.content);
+  }
+
+  @Get('comments/:commentId/replies')
+  @ApiOperation({ summary: 'Get replies for a comment thread' })
+  @ApiParam({ name: 'commentId', description: 'Parent comment ID' })
+  @ApiResponse({ status: 200, description: 'List of replies' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Comment not found' })
+  async getReplies(
+    @CurrentUser() _user: { id: string },
+    @Param('commentId') commentId: string,
+  ) {
+    return this.commentService.getReplies(commentId);
+  }
+
+  @Patch('comments/:commentId/pin')
+  @ApiOperation({ summary: 'Toggle pin status of a comment (author or board admin only)' })
+  @ApiParam({ name: 'commentId', description: 'Comment ID' })
+  @ApiResponse({ status: 200, description: 'Comment pin status toggled' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Not the comment author or board admin' })
+  @ApiResponse({ status: 404, description: 'Comment not found' })
+  async togglePin(
+    @CurrentUser() user: { id: string },
+    @Param('commentId') commentId: string,
+  ) {
+    const cardId = await this.commentService.getCardId(commentId);
+    const boardRole = cardId ? await this.boardService.getMemberRole(
+      (await this.cardService.getBoardId(cardId)) ?? '',
+      user.id,
+    ) : null;
+    return this.commentService.togglePin(commentId, user.id, boardRole);
+  }
+
+  // ---------------------------------------------------------------------------
   // Reactions
   // ---------------------------------------------------------------------------
 

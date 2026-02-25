@@ -1,0 +1,11 @@
+{
+  "title": "활동",
+  "all": "전체",
+  "mentions": "멘션",
+  "threads": "스레드",
+  "dueDate": "마감일",
+  "assigned": "배정됨",
+  "empty": "활동이 없습니다",
+  "markAllRead": "모두 읽음",
+  "loadMore": "더 불러오기"
+}
