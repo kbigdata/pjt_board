@@ -199,20 +199,58 @@ export class AdminService {
   }
 
   async getSystemStats() {
-    const [totalUsers, activeUsers, totalWorkspaces, totalBoards, totalCards] =
-      await Promise.all([
-        this.prisma.user.count(),
-        this.prisma.user.count({ where: { deactivatedAt: null } }),
-        this.prisma.workspace.count(),
-        this.prisma.board.count(),
-        this.prisma.card.count(),
-      ]);
+    const [
+      totalUsers,
+      activeUsers,
+      totalWorkspaces,
+      totalBoards,
+      totalCards,
+      activeBoards,
+      archivedBoards,
+      totalSprints,
+      activeSprints,
+    ] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.count({ where: { deactivatedAt: null } }),
+      this.prisma.workspace.count(),
+      this.prisma.board.count(),
+      this.prisma.card.count(),
+      this.prisma.board.count({ where: { archivedAt: null } }),
+      this.prisma.board.count({ where: { archivedAt: { not: null } } }),
+      this.prisma.sprint.count(),
+      this.prisma.sprint.count({ where: { status: 'ACTIVE' } }),
+    ]);
 
-    const recentUsers = await this.prisma.user.findMany({
-      select: { id: true, name: true, email: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-    });
+    const [recentUsers, recentBoards, recentWorkspaces] = await Promise.all([
+      this.prisma.user.findMany({
+        select: { id: true, name: true, email: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+      this.prisma.board.findMany({
+        select: {
+          id: true,
+          title: true,
+          createdAt: true,
+          workspace: { select: { name: true } },
+          _count: { select: { cards: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+      this.prisma.workspace.findMany({
+        include: {
+          _count: { select: { members: true, boards: true } },
+          members: {
+            where: { role: 'OWNER' },
+            include: { user: { select: { name: true } } },
+            take: 1,
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+    ]);
 
     return {
       totalUsers,
@@ -220,7 +258,26 @@ export class AdminService {
       totalWorkspaces,
       totalBoards,
       totalCards,
+      activeBoards,
+      archivedBoards,
+      totalSprints,
+      activeSprints,
       recentUsers,
+      recentBoards: recentBoards.map((b) => ({
+        id: b.id,
+        title: b.title,
+        createdAt: b.createdAt,
+        workspaceName: b.workspace.name,
+        cardCount: b._count.cards,
+      })),
+      recentWorkspaces: recentWorkspaces.map((ws) => ({
+        id: ws.id,
+        name: ws.name,
+        createdAt: ws.createdAt,
+        memberCount: ws._count.members,
+        boardCount: ws._count.boards,
+        ownerName: ws.members[0]?.user?.name ?? '-',
+      })),
     };
   }
 

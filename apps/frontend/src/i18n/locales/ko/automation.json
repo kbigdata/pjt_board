@@ -9,5 +9,60 @@
   "create": "규칙 만들기",
   "edit": "규칙 편집",
   "delete": "규칙 삭제",
-  "empty": "자동화 규칙이 없습니다"
+  "empty": "자동화 규칙이 없습니다",
+  "backToBoard": "보드로 돌아가기",
+  "automationRules": "자동화 규칙",
+  "description": "보드 이벤트에 따라 반복 작업을 자동화하세요.",
+  "createRule": "+ 규칙 만들기",
+  "newRule": "새 자동화 규칙",
+  "editRule": "규칙 편집",
+  "ruleName": "규칙 이름",
+  "ruleNamePlaceholder": "예: 높은 우선순위 카드를 상단으로 이동",
+  "conditions": "조건",
+  "addCondition": "+ 조건 추가",
+  "noConditions": "조건 없음 — 모든 이벤트에 규칙 적용됨.",
+  "actions": "액션",
+  "addAction": "+ 액션 추가",
+  "noActions": "아직 액션이 추가되지 않았습니다.",
+  "saving": "저장 중...",
+  "saveChanges": "변경 저장",
+  "cancel": "취소",
+  "loading": "자동화 규칙 로딩 중...",
+  "emptyTitle": "자동화 규칙이 없습니다.",
+  "emptyDescription": "반복 작업을 자동화하는 규칙을 만드세요.",
+  "enable": "활성화",
+  "disable": "비활성화",
+  "logs": "로그",
+  "executionLogs": "실행 로그",
+  "logsLast50": "(최근 50개)",
+  "close": "닫기",
+  "loadingLogs": "로그 로딩 중...",
+  "noLogs": "이 규칙의 로그가 없습니다.",
+  "conditionCount": "{{count}}개 조건",
+  "actionCount": "{{count}}개 액션",
+  "confirmDelete": "\"{{name}}\" 규칙을 삭제하시겠습니까?",
+  "valuePlaceholder": "값...",
+  "triggerTypes": {
+    "cardMoved": "카드 이동",
+    "cardCreated": "카드 생성",
+    "labelAdded": "레이블 추가"
+  },
+  "conditionFields": {
+    "priority": "우선순위",
+    "column": "칼럼",
+    "label": "레이블"
+  },
+  "conditionOperators": {
+    "equals": "같음",
+    "notEquals": "같지 않음"
+  },
+  "actionTypes": {
+    "moveCard": "카드 이동",
+    "setLabel": "레이블 설정",
+    "setAssignee": "담당자 설정",
+    "setPriority": "우선순위 설정",
+    "addComment": "댓글 추가",
+    "setDueDate": "마감일 설정",
+    "archive": "카드 아카이브"
+  }
 }

@@ -379,6 +379,26 @@ export class BoardGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`board:${boardId}`).emit('swimlaneMoved', swimlane);
   }
 
+  emitSprintCreated(boardId: string, sprint: Record<string, unknown>) {
+    this.server.to(`board:${boardId}`).emit('sprintCreated', sprint);
+  }
+
+  emitSprintUpdated(boardId: string, sprint: Record<string, unknown>) {
+    this.server.to(`board:${boardId}`).emit('sprintUpdated', sprint);
+  }
+
+  emitSprintStarted(boardId: string, sprint: Record<string, unknown>) {
+    this.server.to(`board:${boardId}`).emit('sprintStarted', sprint);
+  }
+
+  emitSprintCompleted(boardId: string, sprint: Record<string, unknown>) {
+    this.server.to(`board:${boardId}`).emit('sprintCompleted', sprint);
+  }
+
+  emitSprintCardsChanged(boardId: string, data: Record<string, unknown>) {
+    this.server.to(`board:${boardId}`).emit('sprintCardsChanged', data);
+  }
+
   emitReplyAdded(boardId: string, reply: Record<string, unknown>) {
     this.server.to(`board:${boardId}`).emit('replyAdded', reply);
   }

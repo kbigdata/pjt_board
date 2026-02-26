@@ -9,5 +9,60 @@
   "create": "Create Rule",
   "edit": "Edit Rule",
   "delete": "Delete Rule",
-  "empty": "No automation rules"
+  "empty": "No automation rules",
+  "backToBoard": "Back to board",
+  "automationRules": "Automation Rules",
+  "description": "Automate repetitive tasks based on board events.",
+  "createRule": "+ Create Rule",
+  "newRule": "New Automation Rule",
+  "editRule": "Edit Rule",
+  "ruleName": "Rule Name",
+  "ruleNamePlaceholder": "e.g. Move high priority cards to top",
+  "conditions": "Conditions",
+  "addCondition": "+ Add Condition",
+  "noConditions": "No conditions — rule applies to all events.",
+  "actions": "Actions",
+  "addAction": "+ Add Action",
+  "noActions": "No actions added yet.",
+  "saving": "Saving...",
+  "saveChanges": "Save Changes",
+  "cancel": "Cancel",
+  "loading": "Loading automation rules...",
+  "emptyTitle": "No automation rules yet.",
+  "emptyDescription": "Create a rule to automate repetitive tasks.",
+  "enable": "Enable",
+  "disable": "Disable",
+  "logs": "Logs",
+  "executionLogs": "Execution Logs",
+  "logsLast50": "(last 50)",
+  "close": "Close",
+  "loadingLogs": "Loading logs...",
+  "noLogs": "No logs yet for this rule.",
+  "conditionCount": "{{count}} condition(s)",
+  "actionCount": "{{count}} action(s)",
+  "confirmDelete": "Delete rule \"{{name}}\"?",
+  "valuePlaceholder": "Value...",
+  "triggerTypes": {
+    "cardMoved": "Card Moved",
+    "cardCreated": "Card Created",
+    "labelAdded": "Label Added"
+  },
+  "conditionFields": {
+    "priority": "Priority",
+    "column": "Column",
+    "label": "Label"
+  },
+  "conditionOperators": {
+    "equals": "Equals",
+    "notEquals": "Not Equals"
+  },
+  "actionTypes": {
+    "moveCard": "Move Card",
+    "setLabel": "Set Label",
+    "setAssignee": "Set Assignee",
+    "setPriority": "Set Priority",
+    "addComment": "Add Comment",
+    "setDueDate": "Set Due Date",
+    "archive": "Archive Card"
+  }
 }

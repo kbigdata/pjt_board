@@ -1,4 +1,4 @@
-import { PrismaClient, Role, Priority, ColumnType, Visibility } from '@prisma/client';
+import { PrismaClient, Role, Priority, ColumnType, Visibility, SprintStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -220,6 +220,77 @@ async function main() {
   } else {
     console.log('Cards already exist, skipping...');
   }
+
+  // --- Sprints ---
+  const now = new Date();
+  const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+
+  const twoWeeksAgo = new Date(now.getTime() - 2 * oneWeekMs);
+  const oneWeekAgo = new Date(now.getTime() - oneWeekMs);
+  const oneWeekFromNow = new Date(now.getTime() + oneWeekMs);
+  const threeWeeksFromNow = new Date(now.getTime() + 3 * oneWeekMs);
+
+  const existingSprint0 = await prisma.sprint.findFirst({
+    where: { boardId: board.id, name: 'Sprint 0 - Foundation' },
+  });
+  const sprint0 = existingSprint0 ?? await prisma.sprint.create({
+    data: {
+      boardId: board.id,
+      name: 'Sprint 0 - Foundation',
+      goal: 'Set up project infrastructure',
+      startDate: twoWeeksAgo,
+      endDate: oneWeekAgo,
+      status: SprintStatus.COMPLETED,
+      completedAt: oneWeekAgo,
+    },
+  });
+
+  const existingSprint1 = await prisma.sprint.findFirst({
+    where: { boardId: board.id, name: 'Sprint 1 - Core Features' },
+  });
+  const sprint1 = existingSprint1 ?? await prisma.sprint.create({
+    data: {
+      boardId: board.id,
+      name: 'Sprint 1 - Core Features',
+      goal: 'Implement core board functionality',
+      startDate: oneWeekAgo,
+      endDate: oneWeekFromNow,
+      status: SprintStatus.ACTIVE,
+    },
+  });
+
+  const existingSprint2 = await prisma.sprint.findFirst({
+    where: { boardId: board.id, name: 'Sprint 2 - Polish' },
+  });
+  await (existingSprint2 ?? prisma.sprint.create({
+    data: {
+      boardId: board.id,
+      name: 'Sprint 2 - Polish',
+      goal: 'UI improvements and bug fixes',
+      startDate: oneWeekFromNow,
+      endDate: threeWeeksFromNow,
+      status: SprintStatus.PLANNING,
+    },
+  }));
+
+  console.log('Sprints created:', sprint0.name, sprint1.name, 'Sprint 2 - Polish');
+
+  // Assign cards in In Progress / Backlog columns to the active sprint (Sprint 1)
+  // Card numbers 4, 5, 9 (In Progress) and 6 (Backlog / WebSocket feature)
+  const sprint1CardNumbers = [4, 5, 6, 9];
+  for (const num of sprint1CardNumbers) {
+    await prisma.card.updateMany({
+      where: { boardId: board.id, cardNumber: num, sprintId: null },
+      data: { sprintId: sprint1.id },
+    });
+  }
+
+  console.log(
+    'Assigned cards',
+    sprint1CardNumbers.join(', '),
+    'to sprint:',
+    sprint1.name,
+  );
 
   console.log('Seed completed!');
 }

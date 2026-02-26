@@ -7,6 +7,7 @@ export interface Workspace {
   description: string | null;
   ownerId: string;
   memberCount?: number;
+  boardCount?: number;
   myRole?: string;
   createdAt: string;
   updatedAt: string;

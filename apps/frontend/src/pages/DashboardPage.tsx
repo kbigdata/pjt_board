@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/stores/auth';
 import { workspacesApi } from '@/api/workspaces';
 import { boardsApi, type Board, type Card, type Column } from '@/api/boards';
@@ -13,7 +14,11 @@ const PRIORITY_BADGE: Record<string, string> = {
   LOW: 'bg-gray-100 text-gray-600',
 };
 
-function formatDueDate(dueDate: string | null): { label: string; className: string } | null {
+function formatDueDate(
+  dueDate: string | null,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  locale: string,
+): { label: string; className: string } | null {
   if (!dueDate) return null;
   const now = new Date();
   const due = new Date(dueDate);
@@ -21,20 +26,20 @@ function formatDueDate(dueDate: string | null): { label: string; className: stri
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
   if (diffMs < 0) {
-    return { label: 'Overdue', className: 'text-red-600 font-semibold' };
+    return { label: t('dueDate.overdue'), className: 'text-red-600 font-semibold' };
   }
   if (diffDays === 0) {
-    return { label: 'Due today', className: 'text-amber-600 font-semibold' };
+    return { label: t('dueDate.dueToday'), className: 'text-amber-600 font-semibold' };
   }
   if (diffDays <= 7) {
     return {
-      label: `Due in ${diffDays}d`,
+      label: t('dueDate.dueInDays', { count: diffDays }),
       className: 'text-amber-600',
     };
   }
   return {
-    label: due.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
-    className: 'text-gray-500',
+    label: due.toLocaleDateString(locale, { month: 'short', day: 'numeric' }),
+    className: 'text-[var(--text-tertiary)]',
   };
 }
 
@@ -104,6 +109,7 @@ function useRecentActivities(boards: Board[]) {
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
+  const { t, i18n } = useTranslation('dashboard');
   const { boards, isLoading: boardsLoading } = useAllBoards();
   const { data: allCards = [], isLoading: cardsLoading } = useAllCards(boards);
   const { data: allColumns = [], isLoading: columnsLoading } = useAllColumns(boards);
@@ -165,7 +171,7 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="text-gray-500">Loading dashboard...</div>
+        <div className="text-[var(--text-tertiary)]">{t('loading')}</div>
       </div>
     );
   }
@@ -173,43 +179,43 @@ export default function DashboardPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
       <div>
-        <h2 className="text-xl font-semibold text-gray-900">
-          Dashboard
+        <h2 className="text-xl font-semibold text-[var(--text-primary)]">
+          {t('title')}
         </h2>
-        <p className="text-sm text-gray-500 mt-1">
-          Welcome back, {user?.name}. Here is your workspace overview.
+        <p className="text-sm text-[var(--text-tertiary)] mt-1">
+          {t('welcome', { name: user?.name })}
         </p>
       </div>
 
       {/* My Assigned Cards */}
       <section>
-        <h3 className="text-base font-semibold text-gray-800 mb-3">
-          My Assigned Cards
-          <span className="ml-2 text-sm font-normal text-gray-400">
+        <h3 className="text-base font-semibold text-[var(--text-primary)] mb-3">
+          {t('myAssignedCards')}
+          <span className="ml-2 text-sm font-normal text-[var(--text-tertiary)]">
             ({myAssignedCards.length})
           </span>
         </h3>
         {myAssignedCards.length === 0 ? (
-          <div className="bg-white border rounded-lg p-6 text-center text-gray-400 text-sm">
-            No cards assigned to you.
+          <div className="bg-[var(--bg-primary)] border-[var(--border-secondary)] border rounded-lg p-6 text-center text-[var(--text-tertiary)] text-sm">
+            {t('noAssignedCards')}
           </div>
         ) : (
-          <div className="bg-white border rounded-lg divide-y">
+          <div className="bg-[var(--bg-primary)] border-[var(--border-secondary)] border rounded-lg divide-y divide-[var(--border-secondary)]">
             {myAssignedCards.slice(0, 10).map((card) => {
-              const dueDateInfo = formatDueDate(card.dueDate);
+              const dueDateInfo = formatDueDate(card.dueDate, t, i18n.language);
               return (
                 <div key={card.id} className="flex items-center gap-3 px-4 py-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-[var(--text-tertiary)]">
                         KF-{String(card.cardNumber).padStart(3, '0')}
                       </span>
-                      <span className="text-xs text-gray-400">&middot;</span>
-                      <span className="text-xs text-gray-500 truncate">
+                      <span className="text-xs text-[var(--text-tertiary)]">&middot;</span>
+                      <span className="text-xs text-[var(--text-secondary)] truncate">
                         {(card as Card & { board?: { title: string } }).board?.title}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-900 mt-0.5 truncate">{card.title}</p>
+                    <p className="text-sm text-[var(--text-primary)] mt-0.5 truncate">{card.title}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span
@@ -229,8 +235,8 @@ export default function DashboardPage() {
               );
             })}
             {myAssignedCards.length > 10 && (
-              <div className="px-4 py-2 text-xs text-gray-400 text-center">
-                +{myAssignedCards.length - 10} more cards
+              <div className="px-4 py-2 text-xs text-[var(--text-tertiary)] text-center">
+                {t('moreCards', { count: myAssignedCards.length - 10 })}
               </div>
             )}
           </div>
@@ -239,33 +245,33 @@ export default function DashboardPage() {
 
       {/* Due Soon */}
       <section>
-        <h3 className="text-base font-semibold text-gray-800 mb-3">
-          Due Soon
-          <span className="ml-2 text-sm font-normal text-gray-400">
-            (next 7 days &mdash; {dueSoonCards.length} cards)
+        <h3 className="text-base font-semibold text-[var(--text-primary)] mb-3">
+          {t('dueSoon')}
+          <span className="ml-2 text-sm font-normal text-[var(--text-tertiary)]">
+            ({t('dueSoonDesc', { count: dueSoonCards.length })})
           </span>
         </h3>
         {dueSoonCards.length === 0 ? (
-          <div className="bg-white border rounded-lg p-6 text-center text-gray-400 text-sm">
-            No cards due in the next 7 days.
+          <div className="bg-[var(--bg-primary)] border-[var(--border-secondary)] border rounded-lg p-6 text-center text-[var(--text-tertiary)] text-sm">
+            {t('noDueSoon')}
           </div>
         ) : (
-          <div className="bg-white border rounded-lg divide-y">
+          <div className="bg-[var(--bg-primary)] border-[var(--border-secondary)] border rounded-lg divide-y divide-[var(--border-secondary)]">
             {dueSoonCards.map((card) => {
-              const dueDateInfo = formatDueDate(card.dueDate);
+              const dueDateInfo = formatDueDate(card.dueDate, t, i18n.language);
               return (
                 <div key={card.id} className="flex items-center gap-3 px-4 py-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-[var(--text-tertiary)]">
                         KF-{String(card.cardNumber).padStart(3, '0')}
                       </span>
-                      <span className="text-xs text-gray-400">&middot;</span>
-                      <span className="text-xs text-gray-500 truncate">
+                      <span className="text-xs text-[var(--text-tertiary)]">&middot;</span>
+                      <span className="text-xs text-[var(--text-secondary)] truncate">
                         {(card as Card & { board?: { title: string } }).board?.title}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-900 mt-0.5 truncate">{card.title}</p>
+                    <p className="text-sm text-[var(--text-primary)] mt-0.5 truncate">{card.title}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span
@@ -290,35 +296,37 @@ export default function DashboardPage() {
 
       {/* Recent Activity */}
       <section>
-        <h3 className="text-base font-semibold text-gray-800 mb-3">Recent Activity</h3>
+        <h3 className="text-base font-semibold text-[var(--text-primary)] mb-3">
+          {t('recentActivity')}
+        </h3>
         {activitiesLoading ? (
-          <div className="text-sm text-gray-400">Loading activities...</div>
+          <div className="text-sm text-[var(--text-tertiary)]">{t('loadingActivities')}</div>
         ) : recentActivities.length === 0 ? (
-          <div className="bg-white border rounded-lg p-6 text-center text-gray-400 text-sm">
-            No recent activity.
+          <div className="bg-[var(--bg-primary)] border-[var(--border-secondary)] border rounded-lg p-6 text-center text-[var(--text-tertiary)] text-sm">
+            {t('noRecentActivity')}
           </div>
         ) : (
-          <div className="bg-white border rounded-lg divide-y">
+          <div className="bg-[var(--bg-primary)] border-[var(--border-secondary)] border rounded-lg divide-y divide-[var(--border-secondary)]">
             {recentActivities.map((activity: Activity) => (
               <div key={activity.id} className="flex items-start gap-3 px-4 py-3">
                 <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-medium flex-shrink-0 mt-0.5">
                   {activity.user.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-700">
+                  <p className="text-sm text-[var(--text-primary)]">
                     <span className="font-medium">{activity.user.name}</span>{' '}
-                    <span className="text-gray-500">{activity.action.replace(/_/g, ' ').toLowerCase()}</span>
+                    <span className="text-[var(--text-secondary)]">{activity.action.replace(/_/g, ' ').toLowerCase()}</span>
                     {activity.card && (
                       <>
                         {' '}
-                        <span className="font-medium text-gray-700">
+                        <span className="font-medium text-[var(--text-primary)]">
                           KF-{String(activity.card.cardNumber).padStart(3, '0')} {activity.card.title}
                         </span>
                       </>
                     )}
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {new Date(activity.createdAt).toLocaleString('ko-KR', {
+                  <p className="text-xs text-[var(--text-tertiary)] mt-0.5">
+                    {new Date(activity.createdAt).toLocaleString(i18n.language, {
                       month: 'short',
                       day: 'numeric',
                       hour: '2-digit',
@@ -334,19 +342,19 @@ export default function DashboardPage() {
 
       {/* Board Summary */}
       <section>
-        <h3 className="text-base font-semibold text-gray-800 mb-3">
-          Board Summary
-          <span className="ml-2 text-sm font-normal text-gray-400">
-            ({boards.length} boards)
+        <h3 className="text-base font-semibold text-[var(--text-primary)] mb-3">
+          {t('boardSummary')}
+          <span className="ml-2 text-sm font-normal text-[var(--text-tertiary)]">
+            ({t('boardCount', { count: boards.length })})
           </span>
         </h3>
         {boardStats.length === 0 ? (
-          <div className="bg-white border rounded-lg p-6 text-center text-gray-400 text-sm">
-            No boards yet.{' '}
-            <Link to="/" className="text-blue-600 hover:underline">
-              Go to Workspaces
+          <div className="bg-[var(--bg-primary)] border-[var(--border-secondary)] border rounded-lg p-6 text-center text-[var(--text-tertiary)] text-sm">
+            {t('noBoards')}{' '}
+            <Link to="/" className="text-[var(--accent)] hover:underline">
+              {t('goToWorkspaces')}
             </Link>{' '}
-            to create one.
+            {t('toCreateOne')}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -354,30 +362,30 @@ export default function DashboardPage() {
               <Link
                 key={board.id}
                 to={`/boards/${board.id}`}
-                className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow"
+                className="bg-[var(--bg-primary)] border-[var(--border-secondary)] border rounded-lg p-4 hover:shadow-md transition-shadow"
               >
-                <h4 className="font-semibold text-gray-900 truncate">{board.title}</h4>
+                <h4 className="font-semibold text-[var(--text-primary)] truncate">{board.title}</h4>
                 {board.description && (
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-1">{board.description}</p>
+                  <p className="text-xs text-[var(--text-tertiary)] mt-1 line-clamp-1">{board.description}</p>
                 )}
                 <div className="flex items-center gap-4 mt-3">
                   <div className="text-center">
-                    <div className="text-xl font-bold text-gray-900">{cardCount}</div>
-                    <div className="text-xs text-gray-400">Cards</div>
+                    <div className="text-xl font-bold text-[var(--text-primary)]">{cardCount}</div>
+                    <div className="text-xs text-[var(--text-tertiary)]">{t('cardLabel')}</div>
                   </div>
                   <div className="text-center">
                     <div
                       className={`text-xl font-bold ${
-                        overdueCount > 0 ? 'text-red-600' : 'text-gray-900'
+                        overdueCount > 0 ? 'text-red-600' : 'text-[var(--text-primary)]'
                       }`}
                     >
                       {overdueCount}
                     </div>
-                    <div className="text-xs text-gray-400">Overdue</div>
+                    <div className="text-xs text-[var(--text-tertiary)]">{t('overdueLabel')}</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-xl font-bold text-gray-900">{memberCount}</div>
-                    <div className="text-xs text-gray-400">Members</div>
+                    <div className="text-xl font-bold text-[var(--text-primary)]">{memberCount}</div>
+                    <div className="text-xs text-[var(--text-tertiary)]">{t('membersLabel')}</div>
                   </div>
                 </div>
               </Link>

@@ -13,13 +13,19 @@
     "list": "List",
     "calendar": "Calendar",
     "timeline": "Timeline",
-    "dashboard": "Dashboard"
+    "dashboard": "Dashboard",
+    "sprint": "Sprint"
   },
   "sidebar": {
     "favorites": "Favorites",
     "boards": "Boards",
     "recent": "Recent",
-    "team": "Team Members"
+    "team": "Team Members",
+    "noFavorites": "No favorite boards",
+    "favoriteBoards": "Favorite Boards",
+    "searchPlaceholder": "Search boards...",
+    "searchEmpty": "No results found",
+    "searchHint": "Search by board name"
   },
   "empty": {
     "title": "No boards yet",
@@ -58,6 +64,11 @@
   "columnDescription": "Description",
   "columnDescriptionPlaceholder": "Column description...",
   "columnSaveDescription": "Save description",
+  "dueDate": {
+    "overdue": "Overdue",
+    "dueSoon": "Due soon",
+    "dueToday": "Due today"
+  },
   "cardTitlePlaceholder": "Enter a title...",
   "addCard": "Add a card",
   "cardEditing": "Editing: {{name}}",
@@ -91,6 +102,7 @@
     "daysRemaining": "Expires in {{count}} days",
     "restore": "Restore",
     "deleteForever": "Delete Forever",
-    "cards": "cards"
+    "cards": "cards",
+    "boardCount": "{{count}} boards"
   }
 }

@@ -16,6 +16,7 @@ import { NotificationModule } from './modules/notification/notification.module';
 import { MinioModule } from './common/minio/minio.module';
 import { AttachmentModule } from './modules/attachment/attachment.module';
 import { SwimlaneModule } from './modules/swimlane/swimlane.module';
+import { SprintModule } from './modules/sprint/sprint.module';
 import { CardLinkModule } from './modules/card-link/card-link.module';
 import { CardTagModule } from './modules/card-tag/card-tag.module';
 import { AutomationModule } from './modules/automation/automation.module';
@@ -47,6 +48,7 @@ import { AdminModule } from './modules/admin/admin.module';
     NotificationModule,
     AttachmentModule,
     SwimlaneModule,
+    SprintModule,
     CardLinkModule,
     CardTagModule,
     AutomationModule,

@@ -17,6 +17,9 @@ import koActivity from './locales/ko/activity.json';
 import koAutomation from './locales/ko/automation.json';
 import koDashboard from './locales/ko/dashboard.json';
 import koErrors from './locales/ko/errors.json';
+import koSprint from './locales/ko/sprint.json';
+import koReport from './locales/ko/report.json';
+import koAdmin from './locales/ko/admin.json';
 
 // English translations
 import enCommon from './locales/en/common.json';
@@ -33,6 +36,9 @@ import enActivity from './locales/en/activity.json';
 import enAutomation from './locales/en/automation.json';
 import enDashboard from './locales/en/dashboard.json';
 import enErrors from './locales/en/errors.json';
+import enSprint from './locales/en/sprint.json';
+import enReport from './locales/en/report.json';
+import enAdmin from './locales/en/admin.json';
 
 i18n
   .use(LanguageDetector)
@@ -54,6 +60,9 @@ i18n
         automation: koAutomation,
         dashboard: koDashboard,
         errors: koErrors,
+        sprint: koSprint,
+        report: koReport,
+        admin: koAdmin,
       },
       en: {
         common: enCommon,
@@ -70,6 +79,9 @@ i18n
         automation: enAutomation,
         dashboard: enDashboard,
         errors: enErrors,
+        sprint: enSprint,
+        report: enReport,
+        admin: enAdmin,
       },
     },
     fallbackLng: 'ko',
@@ -77,7 +89,7 @@ i18n
     ns: [
       'common', 'nav', 'board', 'card', 'column', 'comment',
       'filter', 'settings', 'auth', 'notification',
-      'activity', 'automation', 'dashboard', 'errors',
+      'activity', 'automation', 'dashboard', 'errors', 'sprint', 'report', 'admin',
     ],
     interpolation: {
       escapeValue: false,

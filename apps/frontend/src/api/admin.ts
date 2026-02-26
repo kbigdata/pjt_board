@@ -59,7 +59,13 @@ export interface SystemStats {
   totalWorkspaces: number;
   totalBoards: number;
   totalCards: number;
+  activeBoards: number;
+  archivedBoards: number;
+  totalSprints: number;
+  activeSprints: number;
   recentUsers: { id: string; name: string; email: string; createdAt: string }[];
+  recentBoards: { id: string; title: string; createdAt: string; workspaceName: string; cardCount: number }[];
+  recentWorkspaces: { id: string; name: string; createdAt: string; memberCount: number; boardCount: number; ownerName: string }[];
 }
 
 export interface SystemSetting {

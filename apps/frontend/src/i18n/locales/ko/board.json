@@ -13,13 +13,19 @@
     "list": "리스트",
     "calendar": "캘린더",
     "timeline": "타임라인",
-    "dashboard": "대시보드"
+    "dashboard": "대시보드",
+    "sprint": "스프린트"
   },
   "sidebar": {
     "favorites": "즐겨찾기",
     "boards": "보드 목록",
     "recent": "최근",
-    "team": "팀 멤버"
+    "team": "팀 멤버",
+    "noFavorites": "즐겨찾기한 보드가 없습니다",
+    "favoriteBoards": "즐겨찾기 보드",
+    "searchPlaceholder": "보드 검색...",
+    "searchEmpty": "검색 결과가 없습니다",
+    "searchHint": "보드 이름으로 검색하세요"
   },
   "empty": {
     "title": "아직 보드가 없습니다",
@@ -58,6 +64,11 @@
   "columnDescription": "설명",
   "columnDescriptionPlaceholder": "컬럼 설명...",
   "columnSaveDescription": "설명 저장",
+  "dueDate": {
+    "overdue": "지연됨",
+    "dueSoon": "마감 임박",
+    "dueToday": "오늘 마감"
+  },
   "cardTitlePlaceholder": "제목을 입력하세요...",
   "addCard": "카드 추가",
   "cardEditing": "편집 중: {{name}}",
@@ -91,6 +102,7 @@
     "daysRemaining": "{{count}}일 후 만료",
     "restore": "복원",
     "deleteForever": "영구 삭제",
-    "cards": "카드"
+    "cards": "카드",
+    "boardCount": "{{count}}개 보드"
   }
 }

@@ -29,11 +29,19 @@ const queryClient = new QueryClient({
 });
 
 function AppRoutes() {
-  const { initialize } = useAuthStore();
+  const { initialize, initialized } = useAuthStore();
 
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  if (!initialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-secondary)]">
+        <div className="text-[var(--text-secondary)]">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <Routes>

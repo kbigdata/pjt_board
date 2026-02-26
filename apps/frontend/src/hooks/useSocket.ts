@@ -106,6 +106,15 @@ export function useBoardSocket(boardId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ['swimlanes', boardId] });
     };
 
+    const invalidateSprints = () => {
+      queryClient.invalidateQueries({ queryKey: ['sprints', boardId] });
+    };
+
+    const invalidateSprintsAndCards = () => {
+      queryClient.invalidateQueries({ queryKey: ['sprints', boardId] });
+      queryClient.invalidateQueries({ queryKey: ['cards', boardId] });
+    };
+
     // PR-001: Presence events
     const handlePresenceUpdate = (data: { boardId: string; userIds: string[] }) => {
       if (data.boardId === boardId) {
@@ -131,6 +140,11 @@ export function useBoardSocket(boardId: string | undefined) {
     socket.on('swimlaneCreated', invalidateSwimlanes);
     socket.on('swimlaneUpdated', invalidateSwimlanes);
     socket.on('swimlaneMoved', invalidateSwimlanes);
+    socket.on('sprintCreated', invalidateSprints);
+    socket.on('sprintUpdated', invalidateSprints);
+    socket.on('sprintStarted', invalidateSprintsAndCards);
+    socket.on('sprintCompleted', invalidateSprintsAndCards);
+    socket.on('sprintCardsChanged', invalidateSprintsAndCards);
     socket.on('attachmentAdded', invalidateCards);
     socket.on('attachmentRemoved', invalidateCards);
     socket.on('presenceUpdate', handlePresenceUpdate);
@@ -150,6 +164,11 @@ export function useBoardSocket(boardId: string | undefined) {
       socket.off('swimlaneCreated', invalidateSwimlanes);
       socket.off('swimlaneUpdated', invalidateSwimlanes);
       socket.off('swimlaneMoved', invalidateSwimlanes);
+      socket.off('sprintCreated', invalidateSprints);
+      socket.off('sprintUpdated', invalidateSprints);
+      socket.off('sprintStarted', invalidateSprintsAndCards);
+      socket.off('sprintCompleted', invalidateSprintsAndCards);
+      socket.off('sprintCardsChanged', invalidateSprintsAndCards);
       socket.off('attachmentAdded', invalidateCards);
       socket.off('attachmentRemoved', invalidateCards);
       socket.off('presenceUpdate', handlePresenceUpdate);

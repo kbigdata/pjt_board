@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { boardsApi, type Card, type Column } from '@/api/boards';
 import { reportsApi, type CFDDataPoint, type LeadTimeEntry, type ThroughputEntry } from '@/api/reports';
 
@@ -61,13 +62,15 @@ function BarChart({
   rows,
   total,
   colorClass,
+  t,
 }: {
   rows: { label: string; count: number; color?: string }[];
   total: number;
   colorClass?: string;
+  t: (key: string) => string;
 }) {
   if (total === 0) {
-    return <p className="text-sm text-gray-400 italic">No data available.</p>;
+    return <p className="text-sm text-[var(--text-tertiary)] italic">{t('noData')}</p>;
   }
 
   return (
@@ -76,15 +79,15 @@ function BarChart({
         const pct = total > 0 ? Math.round((row.count / total) * 100) : 0;
         return (
           <div key={row.label} className="flex items-center gap-3">
-            <span className="text-sm text-gray-600 w-28 truncate flex-shrink-0">{row.label}</span>
-            <div className="flex-1 bg-gray-100 rounded-full h-4 relative overflow-hidden">
+            <span className="text-sm text-[var(--text-secondary)] w-28 truncate flex-shrink-0">{row.label}</span>
+            <div className="flex-1 bg-[var(--bg-hover)] rounded-full h-4 relative overflow-hidden">
               <div
                 className={`h-4 rounded-full transition-all ${row.color ?? colorClass ?? 'bg-blue-500'}`}
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <span className="text-sm text-gray-700 w-16 text-right flex-shrink-0">
-              {row.count} <span className="text-gray-400 text-xs">({pct}%)</span>
+            <span className="text-sm text-[var(--text-primary)] w-16 text-right flex-shrink-0">
+              {row.count} <span className="text-[var(--text-tertiary)] text-xs">({pct}%)</span>
             </span>
           </div>
         );
@@ -94,9 +97,9 @@ function BarChart({
 }
 
 // Cumulative Flow Diagram — stacked bar per date
-function CFDChart({ data }: { data: CFDDataPoint[] }) {
+function CFDChart({ data, t }: { data: CFDDataPoint[]; t: (key: string, opts?: Record<string, unknown>) => string }) {
   if (!data || data.length === 0) {
-    return <p className="text-sm text-gray-400 italic">No CFD data available for this date range.</p>;
+    return <p className="text-sm text-[var(--text-tertiary)] italic">{t('cfdNoData')}</p>;
   }
 
   // Collect all column titles
@@ -125,7 +128,7 @@ function CFDChart({ data }: { data: CFDDataPoint[] }) {
         {allColumns.map((col, idx) => (
           <div key={col.id} className="flex items-center gap-1.5">
             <div className={`w-3 h-3 rounded-sm ${CFD_COLORS[idx % CFD_COLORS.length]}`} />
-            <span className="text-xs text-gray-600">{col.title}</span>
+            <span className="text-xs text-[var(--text-secondary)]">{col.title}</span>
           </div>
         ))}
       </div>
@@ -166,7 +169,7 @@ function CFDChart({ data }: { data: CFDDataPoint[] }) {
 
                 {/* Date label - shown for first, last, and every few */}
                 <div className="absolute -bottom-5 left-0 right-0 text-center">
-                  <span className="text-xs text-gray-400" style={{ fontSize: 9 }}>
+                  <span className="text-[var(--text-tertiary)]" style={{ fontSize: 9 }}>
                     {point.date.slice(5)}
                   </span>
                 </div>
@@ -182,10 +185,10 @@ function CFDChart({ data }: { data: CFDDataPoint[] }) {
         <div className="mt-4 overflow-x-auto">
           <table className="text-xs w-full border-collapse">
             <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-1 pr-3 text-gray-500 font-medium">Column</th>
-                <th className="text-right py-1 px-2 text-gray-500 font-medium">Latest</th>
-                <th className="text-right py-1 px-2 text-gray-500 font-medium">Change</th>
+              <tr className="border-b border-[var(--border-secondary)]">
+                <th className="text-left py-1 pr-3 text-[var(--text-tertiary)] font-medium">{t('column')}</th>
+                <th className="text-right py-1 px-2 text-[var(--text-tertiary)] font-medium">{t('latest')}</th>
+                <th className="text-right py-1 px-2 text-[var(--text-tertiary)] font-medium">{t('change')}</th>
               </tr>
             </thead>
             <tbody>
@@ -194,15 +197,15 @@ function CFDChart({ data }: { data: CFDDataPoint[] }) {
                 const first = data[0]?.columns.find((c) => c.columnId === col.id)?.count ?? 0;
                 const change = latest - first;
                 return (
-                  <tr key={col.id} className="border-b border-gray-100">
+                  <tr key={col.id} className="border-b border-[var(--border-primary)]">
                     <td className="py-1 pr-3">
                       <span className={`inline-flex items-center gap-1.5 ${CFD_TEXT_COLORS[idx % CFD_TEXT_COLORS.length]}`}>
                         <span className={`w-2 h-2 rounded-sm inline-block ${CFD_COLORS[idx % CFD_COLORS.length]}`} />
                         {col.title}
                       </span>
                     </td>
-                    <td className="text-right py-1 px-2 text-gray-700">{latest}</td>
-                    <td className={`text-right py-1 px-2 ${change > 0 ? 'text-green-600' : change < 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                    <td className="text-right py-1 px-2 text-[var(--text-primary)]">{latest}</td>
+                    <td className={`text-right py-1 px-2 ${change > 0 ? 'text-green-600' : change < 0 ? 'text-red-600' : 'text-[var(--text-tertiary)]'}`}>
                       {change > 0 ? `+${change}` : change}
                     </td>
                   </tr>
@@ -226,7 +229,7 @@ const LEAD_TIME_BUCKETS = [
   { label: '7d+', min: 168, max: Infinity },
 ];
 
-function LeadTimeChart({ data }: { data: LeadTimeEntry[] }) {
+function LeadTimeChart({ data, t }: { data: LeadTimeEntry[]; t: (key: string, opts?: Record<string, unknown>) => string }) {
   const buckets = useMemo(() => {
     return LEAD_TIME_BUCKETS.map((b) => ({
       label: b.label,
@@ -237,7 +240,7 @@ function LeadTimeChart({ data }: { data: LeadTimeEntry[] }) {
   const total = data.length;
 
   if (total === 0) {
-    return <p className="text-sm text-gray-400 italic">No lead time data available for this date range.</p>;
+    return <p className="text-sm text-[var(--text-tertiary)] italic">{t('leadTimeNoData')}</p>;
   }
 
   const avgHours = total > 0 ? data.reduce((sum, d) => sum + d.leadTimeHours, 0) / total : 0;
@@ -250,23 +253,23 @@ function LeadTimeChart({ data }: { data: LeadTimeEntry[] }) {
 
   return (
     <div>
-      <div className="flex items-center gap-4 mb-4 text-sm text-gray-600">
-        <span>
-          <span className="font-semibold text-gray-900">{total}</span> cards completed
+      <div className="flex items-center gap-4 mb-4 text-sm text-[var(--text-secondary)]">
+        <span className="font-semibold text-[var(--text-primary)]">
+          {t('cardsCompleted', { count: total })}
         </span>
-        <span>
-          Avg lead time: <span className="font-semibold text-gray-900">{avgLabel}</span>
+        <span className="font-semibold text-[var(--text-primary)]">
+          {t('avgLeadTime', { time: avgLabel })}
         </span>
       </div>
-      <BarChart rows={buckets} total={total} colorClass="bg-purple-500" />
+      <BarChart rows={buckets} total={total} colorClass="bg-purple-500" t={t as (key: string) => string} />
     </div>
   );
 }
 
 // Throughput chart — bar chart showing cards completed per day
-function ThroughputChart({ data }: { data: ThroughputEntry[] }) {
+function ThroughputChart({ data, t }: { data: ThroughputEntry[]; t: (key: string, opts?: Record<string, unknown>) => string }) {
   if (!data || data.length === 0) {
-    return <p className="text-sm text-gray-400 italic">No throughput data available for this date range.</p>;
+    return <p className="text-sm text-[var(--text-tertiary)] italic">{t('throughputNoData')}</p>;
   }
 
   const max = Math.max(...data.map((d) => d.count), 1);
@@ -275,12 +278,12 @@ function ThroughputChart({ data }: { data: ThroughputEntry[] }) {
 
   return (
     <div>
-      <div className="flex items-center gap-4 mb-4 text-sm text-gray-600">
-        <span>
-          Total: <span className="font-semibold text-gray-900">{total}</span> cards
+      <div className="flex items-center gap-4 mb-4 text-sm text-[var(--text-secondary)]">
+        <span className="font-semibold text-[var(--text-primary)]">
+          {t('totalCompleted', { count: total })}
         </span>
-        <span>
-          Avg/day: <span className="font-semibold text-gray-900">{avg.toFixed(1)}</span>
+        <span className="font-semibold text-[var(--text-primary)]">
+          {t('avgPerDay', { count: avg.toFixed(1) })}
         </span>
       </div>
       <div className="flex items-end gap-1 overflow-x-auto" style={{ height: 120 }}>
@@ -300,7 +303,7 @@ function ThroughputChart({ data }: { data: ThroughputEntry[] }) {
                 />
               </div>
               {entry.count > 0 && (
-                <span className="absolute -top-4 text-center text-gray-700 font-medium" style={{ fontSize: 9 }}>
+                <span className="absolute -top-4 text-center text-[var(--text-primary)] font-medium" style={{ fontSize: 9 }}>
                   {entry.count}
                 </span>
               )}
@@ -316,7 +319,7 @@ function ThroughputChart({ data }: { data: ThroughputEntry[] }) {
             className="flex-shrink-0 text-center"
             style={{ width: `${Math.max(100 / data.length, 2)}%`, minWidth: 16 }}
           >
-            <span className="text-gray-400" style={{ fontSize: 9 }}>
+            <span className="text-[var(--text-tertiary)]" style={{ fontSize: 9 }}>
               {entry.date.slice(5)}
             </span>
           </div>
@@ -328,6 +331,7 @@ function ThroughputChart({ data }: { data: ThroughputEntry[] }) {
 
 export default function ReportPage() {
   const { boardId } = useParams<{ boardId: string }>();
+  const { t } = useTranslation('report');
   const defaultRange = getDefaultDateRange();
   const [fromDate, setFromDate] = useState(defaultRange.from);
   const [toDate, setToDate] = useState(defaultRange.to);
@@ -413,7 +417,7 @@ export default function ReportPage() {
   if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="text-gray-500">Loading report...</div>
+        <div className="text-[var(--text-secondary)]">{t('loading')}</div>
       </div>
     );
   }
@@ -423,24 +427,24 @@ export default function ReportPage() {
       <div className="mb-6">
         <Link
           to={`/boards/${boardId}`}
-          className="text-sm text-blue-600 hover:underline"
+          className="text-sm text-[var(--accent)] hover:underline"
         >
-          &larr; Back to board
+          &larr; {t('backToBoard')}
         </Link>
-        <h2 className="text-xl font-semibold text-gray-900 mt-2">
-          Report: {board?.title}
+        <h2 className="text-xl font-semibold text-[var(--text-primary)] mt-2">
+          {t('report', { name: board?.title })}
         </h2>
-        <p className="text-sm text-gray-500 mt-1">
-          {totalCards} total cards across {columns.length} columns
+        <p className="text-sm text-[var(--text-tertiary)] mt-1">
+          {t('totalCardsAcross', { cards: totalCards, columns: columns.length })}
         </p>
       </div>
 
       <div className="space-y-8">
         {/* Summary stats */}
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <StatCard label="Total Cards" value={totalCards} />
+          <StatCard label={t('totalCards')} value={totalCards} />
           <StatCard
-            label="Overdue"
+            label={t('overdue')}
             value={
               cards.filter(
                 (c: Card) =>
@@ -452,11 +456,11 @@ export default function ReportPage() {
             accent="text-red-600"
           />
           <StatCard
-            label="No Assignee"
+            label={t('noAssignee')}
             value={cards.filter((c: Card) => !c.assignees || c.assignees.length === 0).length}
           />
           <StatCard
-            label="Completed"
+            label={t('completed')}
             value={
               cards.filter((c: Card) =>
                 columns.find((col: Column) => col.id === c.columnId)?.columnType === 'DONE',
@@ -467,66 +471,69 @@ export default function ReportPage() {
         </section>
 
         {/* Section 1: Cards per Column */}
-        <section className="bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-1">Cards per Column</h3>
-          <p className="text-xs text-gray-500 mb-4">Distribution of cards across board columns</p>
+        <section className="bg-[var(--bg-primary)] rounded-lg shadow-sm border border-[var(--border-secondary)] p-6">
+          <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">{t('cardsPerColumn')}</h3>
+          <p className="text-xs text-[var(--text-tertiary)] mb-4">{t('cardsPerColumnDesc')}</p>
           <BarChart
             rows={cardsPerColumn}
             total={totalCards}
             colorClass="bg-blue-500"
+            t={t as (key: string) => string}
           />
         </section>
 
         {/* Section 2: Priority Distribution */}
-        <section className="bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-1">Priority Distribution</h3>
-          <p className="text-xs text-gray-500 mb-4">Number of cards by priority level</p>
+        <section className="bg-[var(--bg-primary)] rounded-lg shadow-sm border border-[var(--border-secondary)] p-6">
+          <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">{t('priorityDistribution')}</h3>
+          <p className="text-xs text-[var(--text-tertiary)] mb-4">{t('priorityDistributionDesc')}</p>
           <BarChart
             rows={priorityDist}
             total={totalCards}
+            t={t as (key: string) => string}
           />
         </section>
 
         {/* Section 3: Member Workload */}
-        <section className="bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-1">Member Workload</h3>
-          <p className="text-xs text-gray-500 mb-4">
-            Cards assigned per member ({totalWithAssignees} card-assignments total)
+        <section className="bg-[var(--bg-primary)] rounded-lg shadow-sm border border-[var(--border-secondary)] p-6">
+          <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">{t('memberWorkload')}</h3>
+          <p className="text-xs text-[var(--text-tertiary)] mb-4">
+            {t('memberWorkloadDesc', { count: totalWithAssignees })}
           </p>
           {memberWorkload.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">No cards are assigned to members yet.</p>
+            <p className="text-sm text-[var(--text-tertiary)] italic">{t('noMemberAssigned')}</p>
           ) : (
             <BarChart
               rows={memberWorkload.map((m) => ({ label: m.name, count: m.count }))}
               total={totalWithAssignees}
               colorClass="bg-purple-500"
+              t={t as (key: string) => string}
             />
           )}
         </section>
 
         {/* Date Range Picker */}
-        <section className="bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-1">Analytics Date Range</h3>
-          <p className="text-xs text-gray-500 mb-4">
-            Select a date range for CFD, Lead Time, and Throughput analytics
+        <section className="bg-[var(--bg-primary)] rounded-lg shadow-sm border border-[var(--border-secondary)] p-6">
+          <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">{t('analyticsDateRange')}</h3>
+          <p className="text-xs text-[var(--text-tertiary)] mb-4">
+            {t('analyticsDateRangeDesc')}
           </p>
           <div className="flex items-center gap-4 flex-wrap">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">From</label>
+              <label className="block text-xs text-[var(--text-tertiary)] mb-1">{t('from')}</label>
               <input
                 type="date"
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
-                className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-3 py-1.5 border border-[var(--border-secondary)] rounded-md text-sm bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">To</label>
+              <label className="block text-xs text-[var(--text-tertiary)] mb-1">{t('to')}</label>
               <input
                 type="date"
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
-                className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-3 py-1.5 border border-[var(--border-secondary)] rounded-md text-sm bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               />
             </div>
             <div className="flex gap-2 items-end pb-0.5">
@@ -542,9 +549,9 @@ export default function ReportPage() {
                       setFromDate(from.toISOString().slice(0, 10));
                       setToDate(to.toISOString().slice(0, 10));
                     }}
-                    className="px-3 py-1.5 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+                    className="px-3 py-1.5 text-xs rounded border border-[var(--border-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                   >
-                    Last {range}
+                    {t('last', { range })}
                   </button>
                 );
               })}
@@ -553,41 +560,41 @@ export default function ReportPage() {
         </section>
 
         {/* Section 4: Cumulative Flow Diagram */}
-        <section className="bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-1">Cumulative Flow Diagram</h3>
-          <p className="text-xs text-gray-500 mb-4">
-            Distribution of cards across columns over time ({fromDate} to {toDate})
+        <section className="bg-[var(--bg-primary)] rounded-lg shadow-sm border border-[var(--border-secondary)] p-6">
+          <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">{t('cfd')}</h3>
+          <p className="text-xs text-[var(--text-tertiary)] mb-4">
+            {t('cfdDesc', { from: fromDate, to: toDate })}
           </p>
           {cfdLoading ? (
-            <p className="text-sm text-gray-400">Loading CFD data...</p>
+            <p className="text-sm text-[var(--text-tertiary)]">{t('cfdLoading')}</p>
           ) : (
-            <CFDChart data={cfdData as CFDDataPoint[]} />
+            <CFDChart data={cfdData as CFDDataPoint[]} t={t} />
           )}
         </section>
 
         {/* Section 5: Lead Time Distribution */}
-        <section className="bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-1">Lead Time Distribution</h3>
-          <p className="text-xs text-gray-500 mb-4">
-            How long cards took from creation to completion ({fromDate} to {toDate})
+        <section className="bg-[var(--bg-primary)] rounded-lg shadow-sm border border-[var(--border-secondary)] p-6">
+          <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">{t('leadTime')}</h3>
+          <p className="text-xs text-[var(--text-tertiary)] mb-4">
+            {t('leadTimeDesc', { from: fromDate, to: toDate })}
           </p>
           {leadTimeLoading ? (
-            <p className="text-sm text-gray-400">Loading lead time data...</p>
+            <p className="text-sm text-[var(--text-tertiary)]">{t('leadTimeLoading')}</p>
           ) : (
-            <LeadTimeChart data={leadTimeData as LeadTimeEntry[]} />
+            <LeadTimeChart data={leadTimeData as LeadTimeEntry[]} t={t} />
           )}
         </section>
 
         {/* Section 6: Throughput Chart */}
-        <section className="bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-1">Throughput</h3>
-          <p className="text-xs text-gray-500 mb-4">
-            Number of cards completed per day ({fromDate} to {toDate})
+        <section className="bg-[var(--bg-primary)] rounded-lg shadow-sm border border-[var(--border-secondary)] p-6">
+          <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">{t('throughput')}</h3>
+          <p className="text-xs text-[var(--text-tertiary)] mb-4">
+            {t('throughputDesc', { from: fromDate, to: toDate })}
           </p>
           {throughputLoading ? (
-            <p className="text-sm text-gray-400">Loading throughput data...</p>
+            <p className="text-sm text-[var(--text-tertiary)]">{t('throughputLoading')}</p>
           ) : (
-            <ThroughputChart data={throughputData as ThroughputEntry[]} />
+            <ThroughputChart data={throughputData as ThroughputEntry[]} t={t} />
           )}
         </section>
       </div>
@@ -605,9 +612,9 @@ function StatCard({
   accent?: string;
 }) {
   return (
-    <div className="bg-white rounded-lg shadow-sm border p-4 text-center">
-      <div className={`text-3xl font-bold ${accent ?? 'text-gray-900'}`}>{value}</div>
-      <div className="text-xs text-gray-500 mt-1">{label}</div>
+    <div className="bg-[var(--bg-primary)] rounded-lg shadow-sm border border-[var(--border-secondary)] p-4 text-center">
+      <div className={`text-3xl font-bold ${accent ?? 'text-[var(--text-primary)]'}`}>{value}</div>
+      <div className="text-xs text-[var(--text-tertiary)] mt-1">{label}</div>
     </div>
   );
 }

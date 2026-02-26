@@ -54,6 +54,16 @@ enum ActivityAction {
   ASSIGNED
   LABEL_ADDED
   LABEL_REMOVED
+  SPRINT_CREATED
+  SPRINT_STARTED
+  SPRINT_COMPLETED
+}
+
+enum SprintStatus {
+  PLANNING
+  ACTIVE
+  COMPLETED
+  CANCELLED
 }
 
 enum NotificationType {
@@ -155,6 +165,7 @@ model Board {
   columnSnapshots ColumnSnapshot[]
   cardStatusLogs  CardStatusLog[]
   savedFilters    SavedFilter[]
+  sprints         Sprint[]
 
   @@map("boards")
 }
@@ -227,6 +238,7 @@ model Card {
   boardId        String    @map("board_id")
   columnId       String    @map("column_id")
   swimlaneId     String?   @map("swimlane_id")
+  sprintId       String?   @map("sprint_id")
   cardNumber     Int       @map("card_number")
   title          String
   description    String?
@@ -246,6 +258,7 @@ model Card {
   board      Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
   column     Column    @relation(fields: [columnId], references: [id])
   swimlane   Swimlane? @relation(fields: [swimlaneId], references: [id])
+  sprint     Sprint?   @relation(fields: [sprintId], references: [id])
   createdBy  User      @relation("CardCreator", fields: [createdById], references: [id])
   assignees  CardAssignee[]
   labels     CardLabel[]
@@ -386,6 +399,25 @@ model CardLink {
 
   @@unique([sourceCardId, targetCardId, linkType])
   @@map("card_links")
+}
+
+model Sprint {
+  id          String       @id @default(uuid())
+  boardId     String       @map("board_id")
+  name        String
+  goal        String?
+  startDate   DateTime     @map("start_date")
+  endDate     DateTime     @map("end_date")
+  status      SprintStatus @default(PLANNING)
+  completedAt DateTime?    @map("completed_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards Card[]
+
+  @@index([boardId, status])
+  @@map("sprints")
 }
 
 model Activity {

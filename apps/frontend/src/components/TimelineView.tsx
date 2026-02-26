@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import { type Card } from '@/api/boards';
+import { type Sprint } from '@/api/sprints';
 
 const PRIORITY_BAR_COLORS: Record<string, string> = {
   CRITICAL: 'bg-red-500 hover:bg-red-600',
@@ -20,6 +21,8 @@ type ZoomLevel = 'week' | 'month';
 interface TimelineViewProps {
   cards: Card[];
   onCardClick: (cardId: string) => void;
+  sprint?: Sprint | null;
+  sprints?: Sprint[];
 }
 
 interface ScheduledCard {
@@ -50,7 +53,7 @@ const DAY_WIDTH_MONTH = 32; // px per day in month zoom
 const ROW_HEIGHT = 40; // px per card row
 const LEFT_PANEL_WIDTH = 200; // px for card title column
 
-export default function TimelineView({ cards, onCardClick }: TimelineViewProps) {
+export default function TimelineView({ cards, onCardClick, sprint, sprints }: TimelineViewProps) {
   const [zoom, setZoom] = useState<ZoomLevel>('month');
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -155,7 +158,8 @@ export default function TimelineView({ cards, onCardClick }: TimelineViewProps) 
     return seps;
   }, [timelineStart, totalDays, dayWidth, zoom]);
 
-  const HEADER_HEIGHT = 56;
+  const hasSprints = sprints && sprints.length > 0;
+  const HEADER_HEIGHT = hasSprints ? 76 : 56;
 
   return (
     <div className="flex flex-col h-full">
@@ -248,8 +252,8 @@ export default function TimelineView({ cards, onCardClick }: TimelineViewProps) 
               {columnHeaders.map((col, i) => (
                 <div
                   key={i}
-                  className="absolute bottom-0 flex items-center justify-center"
-                  style={{ left: col.x, width: dayWidth }}
+                  className="absolute flex items-center justify-center"
+                  style={{ left: col.x, width: dayWidth, bottom: hasSprints ? 20 : 0, height: 20 }}
                 >
                   <span
                     className={`text-xs ${col.isToday ? 'text-[var(--accent)] font-bold' : 'text-[var(--text-tertiary)]'}`}
@@ -258,6 +262,37 @@ export default function TimelineView({ cards, onCardClick }: TimelineViewProps) 
                   </span>
                 </div>
               ))}
+              {/* Sprint bands */}
+              {hasSprints &&
+                sprints!.map((sp) => {
+                  const spStart = new Date(sp.startDate);
+                  const spEnd = new Date(sp.endDate);
+                  const offsetStart = diffDays(timelineStart, spStart);
+                  const offsetEnd = diffDays(timelineStart, spEnd);
+                  if (offsetEnd < 0 || offsetStart > totalDays) return null;
+                  const clampedStart = Math.max(0, offsetStart);
+                  const clampedEnd = Math.min(totalDays, offsetEnd + 1);
+                  const bandX = clampedStart * dayWidth;
+                  const bandWidth = (clampedEnd - clampedStart) * dayWidth;
+                  const bandClass =
+                    sp.status === 'ACTIVE'
+                      ? 'bg-[var(--accent)] opacity-20'
+                      : sp.status === 'COMPLETED'
+                        ? 'bg-[var(--success)] opacity-15'
+                        : 'bg-[var(--bg-tertiary)] opacity-30';
+                  return (
+                    <div
+                      key={sp.id}
+                      className={`absolute bottom-0 h-5 ${bandClass} flex items-center px-1 overflow-hidden`}
+                      style={{ left: bandX, width: bandWidth }}
+                      title={sp.name}
+                    >
+                      <span className="text-xs text-[var(--text-primary)] font-medium truncate opacity-100">
+                        {sp.name}
+                      </span>
+                    </div>
+                  );
+                })}
             </div>
 
             {/* Card bars area */}

@@ -91,7 +91,7 @@ export default function NavBar() {
           icon={<Home size={18} />}
           label={t('home')}
           isActive={activeNavView === 'home'}
-          onClick={() => setNavView('home')}
+          onClick={() => { setNavView('home'); navigate('/'); }}
         />
         <NavItem
           icon={<Search size={18} />}

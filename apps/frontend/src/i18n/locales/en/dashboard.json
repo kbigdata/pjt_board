@@ -14,5 +14,29 @@
     "week": "This Week",
     "month": "This Month",
     "custom": "Custom Range"
+  },
+  "welcome": "Welcome back, {{name}}. Here is your workspace overview.",
+  "myAssignedCards": "My Assigned Cards",
+  "noAssignedCards": "No cards assigned to you.",
+  "dueSoon": "Due Soon",
+  "dueSoonDesc": "next 7 days — {{count}} cards",
+  "noDueSoon": "No cards due in the next 7 days.",
+  "recentActivity": "Recent Activity",
+  "loadingActivities": "Loading activities...",
+  "noRecentActivity": "No recent activity.",
+  "boardSummary": "Board Summary",
+  "boardCount": "{{count}} boards",
+  "noBoards": "No boards yet.",
+  "goToWorkspaces": "Go to Workspaces",
+  "toCreateOne": " to create one.",
+  "cardLabel": "Cards",
+  "overdueLabel": "Overdue",
+  "membersLabel": "Members",
+  "moreCards": "+{{count}} more cards",
+  "loading": "Loading dashboard...",
+  "dueDate": {
+    "overdue": "Overdue",
+    "dueToday": "Due today",
+    "dueInDays": "Due in {{count}}d"
   }
 }

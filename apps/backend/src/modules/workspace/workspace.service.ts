@@ -53,7 +53,7 @@ export class WorkspaceService {
         workspace: {
           include: {
             _count: {
-              select: { members: true },
+              select: { members: true, boards: true },
             },
           },
         },
@@ -64,6 +64,7 @@ export class WorkspaceService {
     return memberships.map((m) => ({
       ...m.workspace,
       memberCount: m.workspace._count.members,
+      boardCount: m.workspace._count.boards,
       myRole: m.role,
     }));
   }

@@ -4,6 +4,8 @@ import NavBar from './NavBar';
 import BoardSidebar from './BoardSidebar';
 import DetailPanel from './DetailPanel';
 import ActivityView from '@/components/ActivityView';
+import FavoritesView from '@/components/FavoritesView';
+import SearchView from '@/components/SearchView';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const {
@@ -65,7 +67,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
       <main className="flex-1 overflow-auto min-w-0">
-        {activeNavView === 'activity' ? <ActivityView /> : children}
+        {activeNavView === 'activity' ? <ActivityView /> :
+         activeNavView === 'bookmarks' ? <FavoritesView /> :
+         activeNavView === 'search' ? <SearchView /> : children}
       </main>
       <DetailPanel onResize={(w) => setDetailPanelWidth(Math.max(320, Math.min(560, w)))} />
     </div>

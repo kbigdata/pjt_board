@@ -14,5 +14,29 @@
     "week": "이번 주",
     "month": "이번 달",
     "custom": "직접 설정"
+  },
+  "welcome": "안녕하세요, {{name}}님. 워크스페이스 현황입니다.",
+  "myAssignedCards": "내 할당 카드",
+  "noAssignedCards": "할당된 카드가 없습니다.",
+  "dueSoon": "마감 임박",
+  "dueSoonDesc": "향후 7일 — {{count}}개 카드",
+  "noDueSoon": "향후 7일 내 마감 카드가 없습니다.",
+  "recentActivity": "최근 활동",
+  "loadingActivities": "활동 로딩 중...",
+  "noRecentActivity": "최근 활동이 없습니다.",
+  "boardSummary": "보드 요약",
+  "boardCount": "{{count}}개 보드",
+  "noBoards": "보드가 없습니다.",
+  "goToWorkspaces": "워크스페이스로 이동",
+  "toCreateOne": "하여 보드를 만드세요.",
+  "cardLabel": "카드",
+  "overdueLabel": "지연",
+  "membersLabel": "멤버",
+  "moreCards": "+{{count}}개 카드 더보기",
+  "loading": "대시보드 로딩 중...",
+  "dueDate": {
+    "overdue": "지연됨",
+    "dueToday": "오늘 마감",
+    "dueInDays": "{{count}}일 후"
   }
 }

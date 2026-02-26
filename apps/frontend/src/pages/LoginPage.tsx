@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useLogin } from '@/hooks/useAuth';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const loginMutation = useLogin();
+  const { t } = useTranslation('auth');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -13,51 +15,51 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border p-6">
-      <h2 className="text-xl font-semibold text-gray-900 mb-6">Login</h2>
+    <div className="bg-[var(--bg-primary)] rounded-lg shadow-sm border border-[var(--border-secondary)] p-6">
+      <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-6">{t('login')}</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Email
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+            {t('email')}
           </label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-[var(--border-secondary)] rounded-md bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
             required
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Password
+          <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">
+            {t('password')}
           </label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-[var(--border-secondary)] rounded-md bg-[var(--bg-primary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
             required
             minLength={8}
           />
         </div>
         {loginMutation.isError && (
           <p className="text-sm text-red-600">
-            Invalid email or password
+            {t('invalidCredentials')}
           </p>
         )}
         <button
           type="submit"
           disabled={loginMutation.isPending}
-          className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 font-medium"
+          className="w-full py-2 px-4 bg-[var(--accent)] text-white rounded-md hover:opacity-90 disabled:opacity-50 font-medium"
         >
-          {loginMutation.isPending ? 'Logging in...' : 'Login'}
+          {loginMutation.isPending ? t('loggingIn') : t('login')}
         </button>
       </form>
-      <p className="mt-4 text-center text-sm text-gray-600">
-        Don't have an account?{' '}
-        <Link to="/register" className="text-blue-600 hover:underline">
-          Register
+      <p className="mt-4 text-center text-sm text-[var(--text-tertiary)]">
+        {t('noAccount')}{' '}
+        <Link to="/register" className="text-[var(--accent)] hover:underline">
+          {t('register')}
         </Link>
       </p>
     </div>

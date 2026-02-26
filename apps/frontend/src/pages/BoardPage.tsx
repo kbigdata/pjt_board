@@ -14,6 +14,9 @@ import { templatesApi, type BoardTemplate } from '@/api/templates';
 import { savedFiltersApi, type SavedFilter } from '@/api/saved-filters';
 import { useSwimlanes } from '@/hooks/useSwimlanes';
 import { type Swimlane } from '@/api/swimlanes';
+import { useSprints } from '@/hooks/useSprints';
+import SprintBoard from '@/components/sprint/SprintBoard';
+import CreateSprintModal from '@/components/sprint/CreateSprintModal';
 import { useUIStore } from '@/stores/ui';
 import ActivityFeed from '@/components/ActivityFeed';
 import ArchiveDrawer from '@/components/ArchiveDrawer';
@@ -49,14 +52,17 @@ const COLUMN_PRESET_COLORS = [
 function getDueDateStatus(
   dueDate: string | null,
   columnType?: string,
+  locale?: string,
+  t?: (key: string) => string,
 ): { label: string; className: string } | null {
   if (!dueDate) return null;
+  const dateLocale = locale === 'ko' ? 'ko-KR' : 'en-US';
 
   // Card in a DONE column: always green
   if (columnType === 'DONE') {
     const due = new Date(dueDate);
     return {
-      label: due.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
+      label: due.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' }),
       className: 'bg-[var(--success-light)] text-[var(--success)]',
     };
   }
@@ -67,12 +73,12 @@ function getDueDateStatus(
   const diffHours = diffMs / (1000 * 60 * 60);
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffMs < 0) return { label: 'Overdue', className: 'bg-[var(--error-light)] text-[var(--error)]' };
-  if (diffHours <= 24) return { label: 'Due soon', className: 'bg-[var(--warning-light)] text-[var(--warning)]' };
-  if (diffDays === 0) return { label: 'Due today', className: 'bg-[var(--warning-light)] text-[var(--warning)]' };
+  if (diffMs < 0) return { label: t?.('dueDate.overdue') ?? 'Overdue', className: 'bg-[var(--error-light)] text-[var(--error)]' };
+  if (diffHours <= 24) return { label: t?.('dueDate.dueSoon') ?? 'Due soon', className: 'bg-[var(--warning-light)] text-[var(--warning)]' };
+  if (diffDays === 0) return { label: t?.('dueDate.dueToday') ?? 'Due today', className: 'bg-[var(--warning-light)] text-[var(--warning)]' };
   if (diffDays <= 3) return { label: `D-${diffDays}`, className: 'bg-[var(--warning-light)] text-[var(--warning)]' };
   return {
-    label: due.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
+    label: due.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' }),
     className: 'bg-[var(--bg-tertiary)] text-[var(--text-tertiary)]',
   };
 }
@@ -165,12 +171,25 @@ export default function BoardPage() {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [filters, setFilters] = useState<FilterState>(getEmptyFilters());
 
-  // VW-002: View mode (board / list / calendar / timeline)
-  const [viewMode, setViewMode] = useState<'board' | 'list' | 'calendar' | 'timeline'>('board');
+  // VW-002: View mode (board / list / calendar / timeline / sprint)
+  const [viewMode, setViewMode] = useState<'board' | 'list' | 'calendar' | 'timeline' | 'sprint'>('board');
 
   // Swimlane state
   const [swimlaneMode, setSwimlaneMode] = useState(false);
   const { swimlanes, createSwimlane } = useSwimlanes(boardId);
+
+  // Sprint state
+  const {
+    sprints,
+    activeSprint,
+    createSprint,
+    startSprint,
+    completeSprint,
+    cancelSprint,
+    addCards: addSprintCards,
+    removeCards: removeSprintCards,
+  } = useSprints(boardId);
+  const [showCreateSprint, setShowCreateSprint] = useState(false);
   const [collapsedSwimlanes, setCollapsedSwimlanes] = useState<Set<string>>(new Set());
 
   // CL-003: Delete column state
@@ -719,6 +738,12 @@ export default function BoardPage() {
             >
               {t('views.timeline')}
             </button>
+            <button
+              onClick={() => setViewMode('sprint')}
+              className={`text-sm px-3 py-1 border-l border-[var(--border-secondary)] ${viewMode === 'sprint' ? 'bg-[var(--accent-light)] text-[var(--accent)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'}`}
+            >
+              {t('views.sprint')}
+            </button>
           </div>
 
           <button
@@ -969,6 +994,27 @@ export default function BoardPage() {
           }
         }}
       >
+        {/* VW-002: Sprint view */}
+        {viewMode === 'sprint' && cards && (
+          <SprintBoard
+            boardId={boardId!}
+            cards={cards}
+            columns={sortedColumns}
+            activeSprint={activeSprint}
+            sprints={sprints}
+            onCardClick={(id) => openCard(id)}
+            onCreateSprint={() => setShowCreateSprint(true)}
+            onStartSprint={startSprint}
+            onCompleteSprint={completeSprint}
+            onCancelSprint={cancelSprint}
+            onAddCards={(cardIds) =>
+              activeSprint && addSprintCards({ sprintId: activeSprint.id, cardIds })
+            }
+            onRemoveCards={(cardIds) =>
+              activeSprint && removeSprintCards({ sprintId: activeSprint.id, cardIds })
+            }
+          />
+        )}
         {/* VW-002: Calendar view */}
         {viewMode === 'calendar' && cards && (
           <CalendarView
@@ -981,6 +1027,8 @@ export default function BoardPage() {
           <TimelineView
             cards={filteredCards}
             onCardClick={(id) => openCard(id)}
+            sprint={activeSprint}
+            sprints={sprints}
           />
         )}
         {/* VW-002: List view */}
@@ -1137,6 +1185,12 @@ export default function BoardPage() {
           isPending={deleteColumnMutation.isPending}
         />
       )}
+
+      <CreateSprintModal
+        isOpen={showCreateSprint}
+        onClose={() => setShowCreateSprint(false)}
+        onCreate={(data) => createSprint(data)}
+      />
     </div>
   );
 }
@@ -1826,7 +1880,7 @@ function KanbanColumn({
   currentUserId: string | undefined;
   activeCardId?: string | null;
 }) {
-  const { t } = useTranslation('board');
+  const { t, i18n } = useTranslation('board');
   const { t: tc } = useTranslation('common');
   const [isAdding, setIsAdding] = useState(false);
   const [title, setTitle] = useState('');
@@ -2044,7 +2098,7 @@ function KanbanColumn({
                             </span>
                           ))}
                           {(() => {
-                            const status = getDueDateStatus(card.dueDate, column.columnType);
+                            const status = getDueDateStatus(card.dueDate, column.columnType, i18n.language, t);
                             if (!status) return null;
                             return (
                               <span className={`text-xs px-1.5 py-0.5 rounded ${status.className}`}>

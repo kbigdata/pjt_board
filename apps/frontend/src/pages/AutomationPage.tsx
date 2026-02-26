@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
   automationApi,
   type AutomationRule,
@@ -8,33 +9,6 @@ import {
   type AutomationAction,
   type AutomationLog,
 } from '@/api/automation';
-
-const TRIGGER_TYPES = [
-  { value: 'cardMoved', label: 'Card Moved' },
-  { value: 'cardCreated', label: 'Card Created' },
-  { value: 'labelAdded', label: 'Label Added' },
-];
-
-const CONDITION_FIELDS = [
-  { value: 'priority', label: 'Priority' },
-  { value: 'column', label: 'Column' },
-  { value: 'label', label: 'Label' },
-];
-
-const CONDITION_OPERATORS = [
-  { value: 'equals', label: 'Equals' },
-  { value: 'notEquals', label: 'Not Equals' },
-];
-
-const ACTION_TYPES = [
-  { value: 'moveCard', label: 'Move Card' },
-  { value: 'setLabel', label: 'Set Label' },
-  { value: 'setAssignee', label: 'Set Assignee' },
-  { value: 'setPriority', label: 'Set Priority' },
-  { value: 'addComment', label: 'Add Comment' },
-  { value: 'setDueDate', label: 'Set Due Date' },
-  { value: 'archive', label: 'Archive Card' },
-];
 
 interface RuleFormState {
   name: string;
@@ -55,10 +29,38 @@ function getEmptyForm(): RuleFormState {
 export default function AutomationPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const queryClient = useQueryClient();
+  const { t, i18n } = useTranslation('automation');
   const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState<AutomationRule | null>(null);
   const [form, setForm] = useState<RuleFormState>(getEmptyForm());
   const [logsRuleId, setLogsRuleId] = useState<string | null>(null);
+
+  const TRIGGER_TYPES = [
+    { value: 'cardMoved', label: t('triggerTypes.cardMoved') },
+    { value: 'cardCreated', label: t('triggerTypes.cardCreated') },
+    { value: 'labelAdded', label: t('triggerTypes.labelAdded') },
+  ];
+
+  const CONDITION_FIELDS = [
+    { value: 'priority', label: t('conditionFields.priority') },
+    { value: 'column', label: t('conditionFields.column') },
+    { value: 'label', label: t('conditionFields.label') },
+  ];
+
+  const CONDITION_OPERATORS = [
+    { value: 'equals', label: t('conditionOperators.equals') },
+    { value: 'notEquals', label: t('conditionOperators.notEquals') },
+  ];
+
+  const ACTION_TYPES = [
+    { value: 'moveCard', label: t('actionTypes.moveCard') },
+    { value: 'setLabel', label: t('actionTypes.setLabel') },
+    { value: 'setAssignee', label: t('actionTypes.setAssignee') },
+    { value: 'setPriority', label: t('actionTypes.setPriority') },
+    { value: 'addComment', label: t('actionTypes.addComment') },
+    { value: 'setDueDate', label: t('actionTypes.setDueDate') },
+    { value: 'archive', label: t('actionTypes.archive') },
+  ];
 
   const { data: rules = [], isLoading } = useQuery({
     queryKey: ['automations', boardId],
@@ -187,55 +189,55 @@ export default function AutomationPage() {
       <div className="mb-6">
         <Link
           to={`/boards/${boardId}`}
-          className="text-sm text-blue-600 hover:underline"
+          className="text-sm text-[var(--accent)] hover:underline"
         >
-          &larr; Back to board
+          &larr; {t('backToBoard')}
         </Link>
-        <h2 className="text-xl font-semibold text-gray-900 mt-2">Automation Rules</h2>
-        <p className="text-sm text-gray-500 mt-1">
-          Automate repetitive tasks based on board events.
+        <h2 className="text-xl font-semibold text-[var(--text-primary)] mt-2">{t('automationRules')}</h2>
+        <p className="text-sm text-[var(--text-tertiary)] mt-1">
+          {t('description')}
         </p>
       </div>
 
       <div className="flex justify-end mb-4">
         <button
           onClick={handleOpenCreate}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+          className="px-4 py-2 bg-[var(--accent)] text-white rounded-md hover:opacity-90 text-sm font-medium"
         >
-          + Create Rule
+          {t('createRule')}
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-          <h3 className="text-base font-semibold text-gray-900 mb-4">
-            {editingRule ? 'Edit Rule' : 'New Automation Rule'}
+        <div className="bg-[var(--bg-primary)] rounded-lg shadow-sm border border-[var(--border-secondary)] p-6 mb-6">
+          <h3 className="text-base font-semibold text-[var(--text-primary)] mb-4">
+            {editingRule ? t('editRule') : t('newRule')}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Rule Name</label>
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">{t('ruleName')}</label>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Move high priority cards to top"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder={t('ruleNamePlaceholder')}
+                className="w-full px-3 py-2 border border-[var(--border-secondary)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--bg-primary)] text-[var(--text-primary)]"
                 required
               />
             </div>
 
             {/* Trigger */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Trigger</label>
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">{t('trigger')}</label>
               <select
                 value={form.triggerType}
                 onChange={(e) => setForm((f) => ({ ...f, triggerType: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-[var(--border-secondary)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--bg-primary)] text-[var(--text-primary)]"
               >
-                {TRIGGER_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                {TRIGGER_TYPES.map((triggerType) => (
+                  <option key={triggerType.value} value={triggerType.value}>
+                    {triggerType.label}
                   </option>
                 ))}
               </select>
@@ -244,25 +246,25 @@ export default function AutomationPage() {
             {/* Conditions */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">Conditions</label>
+                <label className="block text-sm font-medium text-[var(--text-primary)]">{t('conditions')}</label>
                 <button
                   type="button"
                   onClick={addCondition}
-                  className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded border border-blue-300 hover:border-blue-500"
+                  className="text-xs text-[var(--accent)] hover:text-[var(--accent)] px-2 py-1 rounded border border-[var(--accent)] hover:border-[var(--accent)]"
                 >
-                  + Add Condition
+                  {t('addCondition')}
                 </button>
               </div>
               {form.conditions.length === 0 && (
-                <p className="text-xs text-gray-400 italic">No conditions — rule applies to all events.</p>
+                <p className="text-xs text-[var(--text-tertiary)] italic">{t('noConditions')}</p>
               )}
               <div className="space-y-2">
                 {form.conditions.map((cond, i) => (
-                  <div key={i} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md border">
+                  <div key={i} className="flex items-center gap-2 p-2 bg-[var(--bg-secondary)] rounded-md border border-[var(--border-secondary)]">
                     <select
                       value={cond.field}
                       onChange={(e) => updateCondition(i, 'field', e.target.value)}
-                      className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="px-2 py-1.5 border border-[var(--border-secondary)] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)] bg-[var(--bg-primary)] text-[var(--text-primary)]"
                     >
                       {CONDITION_FIELDS.map((f) => (
                         <option key={f.value} value={f.value}>
@@ -273,7 +275,7 @@ export default function AutomationPage() {
                     <select
                       value={cond.operator}
                       onChange={(e) => updateCondition(i, 'operator', e.target.value)}
-                      className="px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="px-2 py-1.5 border border-[var(--border-secondary)] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)] bg-[var(--bg-primary)] text-[var(--text-primary)]"
                     >
                       {CONDITION_OPERATORS.map((op) => (
                         <option key={op.value} value={op.value}>
@@ -285,8 +287,8 @@ export default function AutomationPage() {
                       type="text"
                       value={String(cond.value ?? '')}
                       onChange={(e) => updateCondition(i, 'value', e.target.value)}
-                      placeholder="Value..."
-                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder={t('valuePlaceholder')}
+                      className="flex-1 px-2 py-1.5 border border-[var(--border-secondary)] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)] bg-[var(--bg-primary)] text-[var(--text-primary)]"
                     />
                     <button
                       type="button"
@@ -304,25 +306,25 @@ export default function AutomationPage() {
             {/* Actions */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-gray-700">Actions</label>
+                <label className="block text-sm font-medium text-[var(--text-primary)]">{t('actions')}</label>
                 <button
                   type="button"
                   onClick={addAction}
-                  className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded border border-blue-300 hover:border-blue-500"
+                  className="text-xs text-[var(--accent)] hover:text-[var(--accent)] px-2 py-1 rounded border border-[var(--accent)] hover:border-[var(--accent)]"
                 >
-                  + Add Action
+                  {t('addAction')}
                 </button>
               </div>
               {form.actions.length === 0 && (
-                <p className="text-xs text-gray-400 italic">No actions added yet.</p>
+                <p className="text-xs text-[var(--text-tertiary)] italic">{t('noActions')}</p>
               )}
               <div className="space-y-2">
                 {form.actions.map((action, i) => (
-                  <div key={i} className="flex items-center gap-2 p-2 bg-gray-50 rounded-md border">
+                  <div key={i} className="flex items-center gap-2 p-2 bg-[var(--bg-secondary)] rounded-md border border-[var(--border-secondary)]">
                     <select
                       value={action.type}
                       onChange={(e) => updateActionType(i, e.target.value)}
-                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="flex-1 px-2 py-1.5 border border-[var(--border-secondary)] rounded text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)] bg-[var(--bg-primary)] text-[var(--text-primary)]"
                     >
                       {ACTION_TYPES.map((a) => (
                         <option key={a.value} value={a.value}>
@@ -347,9 +349,9 @@ export default function AutomationPage() {
               <button
                 type="submit"
                 disabled={isPending}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 text-sm font-medium"
+                className="px-4 py-2 bg-[var(--accent)] text-white rounded-md hover:opacity-90 disabled:opacity-50 text-sm font-medium"
               >
-                {isPending ? 'Saving...' : editingRule ? 'Save Changes' : 'Create Rule'}
+                {isPending ? t('saving') : editingRule ? t('saveChanges') : t('create')}
               </button>
               <button
                 type="button"
@@ -358,9 +360,9 @@ export default function AutomationPage() {
                   setEditingRule(null);
                   setForm(getEmptyForm());
                 }}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm"
+                className="px-4 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm"
               >
-                Cancel
+                {t('cancel')}
               </button>
             </div>
           </form>
@@ -368,34 +370,34 @@ export default function AutomationPage() {
       )}
 
       {isLoading ? (
-        <div className="text-gray-500 text-sm">Loading automation rules...</div>
+        <div className="text-[var(--text-tertiary)] text-sm">{t('loading')}</div>
       ) : rules.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
-          <p className="text-base">No automation rules yet.</p>
-          <p className="text-sm mt-1">Create a rule to automate repetitive tasks.</p>
+        <div className="text-center py-12 text-[var(--text-tertiary)]">
+          <p className="text-base">{t('emptyTitle')}</p>
+          <p className="text-sm mt-1">{t('emptyDescription')}</p>
         </div>
       ) : (
         <div className="space-y-3">
           {rules.map((rule) => (
             <div key={rule.id}>
-              <div className="bg-white rounded-lg shadow-sm border p-4 flex items-center justify-between gap-4">
+              <div className="bg-[var(--bg-primary)] rounded-lg shadow-sm border border-[var(--border-secondary)] p-4 flex items-center justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h4 className="font-medium text-gray-900 truncate">{rule.name}</h4>
+                    <h4 className="font-medium text-[var(--text-primary)] truncate">{rule.name}</h4>
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full ${
                         rule.isEnabled
                           ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-500'
+                          : 'bg-[var(--bg-hover)] text-[var(--text-tertiary)]'
                       }`}
                     >
-                      {rule.isEnabled ? 'Enabled' : 'Disabled'}
+                      {rule.isEnabled ? t('enabled') : t('disabled')}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Trigger: {TRIGGER_TYPES.find((t) => t.value === rule.trigger.type)?.label ?? rule.trigger.type}
-                    {rule.conditions.length > 0 && ` | ${rule.conditions.length} condition(s)`}
-                    {rule.actions.length > 0 && ` | ${rule.actions.length} action(s)`}
+                  <p className="text-xs text-[var(--text-tertiary)] mt-0.5">
+                    {t('trigger')}: {TRIGGER_TYPES.find((triggerType) => triggerType.value === rule.trigger.type)?.label ?? rule.trigger.type}
+                    {rule.conditions.length > 0 && ` | ${t('conditionCount', { count: rule.conditions.length })}`}
+                    {rule.actions.length > 0 && ` | ${t('actionCount', { count: rule.actions.length })}`}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -403,68 +405,68 @@ export default function AutomationPage() {
                     onClick={() => setLogsRuleId(logsRuleId === rule.id ? null : rule.id)}
                     className={`text-xs px-3 py-1.5 rounded border transition-colors ${
                       logsRuleId === rule.id
-                        ? 'border-blue-400 text-blue-700 bg-blue-50'
-                        : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                        ? 'border-[var(--accent)] text-[var(--accent)] bg-[var(--bg-secondary)]'
+                        : 'border-[var(--border-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                     }`}
                   >
-                    Logs
+                    {t('logs')}
                   </button>
                   <button
                     onClick={() => toggleMutation.mutate(rule.id)}
                     disabled={toggleMutation.isPending}
                     className={`text-xs px-3 py-1.5 rounded border transition-colors disabled:opacity-50 ${
                       rule.isEnabled
-                        ? 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                        ? 'border-[var(--border-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
                         : 'border-green-300 text-green-700 hover:bg-green-50'
                     }`}
                   >
-                    {rule.isEnabled ? 'Disable' : 'Enable'}
+                    {rule.isEnabled ? t('disable') : t('enable')}
                   </button>
                   <button
                     onClick={() => handleOpenEdit(rule)}
-                    className="text-xs px-3 py-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-50"
+                    className="text-xs px-3 py-1.5 rounded border border-[var(--border-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
                   >
-                    Edit
+                    {t('edit')}
                   </button>
                   <button
                     onClick={() => {
-                      if (window.confirm(`Delete rule "${rule.name}"?`)) {
+                      if (window.confirm(t('confirmDelete', { name: rule.name }))) {
                         deleteMutation.mutate(rule.id);
                       }
                     }}
                     disabled={deleteMutation.isPending}
                     className="text-xs px-3 py-1.5 rounded border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
                   >
-                    Delete
+                    {t('delete')}
                   </button>
                 </div>
               </div>
 
               {/* Logs panel */}
               {logsRuleId === rule.id && (
-                <div className="bg-gray-50 border border-t-0 rounded-b-lg px-4 py-3">
+                <div className="bg-[var(--bg-secondary)] border border-[var(--border-secondary)] border-t-0 rounded-b-lg px-4 py-3">
                   <div className="flex items-center justify-between mb-2">
-                    <h5 className="text-xs font-semibold text-gray-700">
-                      Execution Logs
-                      <span className="ml-1 font-normal text-gray-400">(last 50)</span>
+                    <h5 className="text-xs font-semibold text-[var(--text-primary)]">
+                      {t('executionLogs')}
+                      <span className="ml-1 font-normal text-[var(--text-tertiary)]">{t('logsLast50')}</span>
                     </h5>
                     <button
                       onClick={() => setLogsRuleId(null)}
-                      className="text-xs text-gray-400 hover:text-gray-600"
+                      className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
                     >
-                      Close
+                      {t('close')}
                     </button>
                   </div>
                   {logsLoading ? (
-                    <p className="text-xs text-gray-400">Loading logs...</p>
+                    <p className="text-xs text-[var(--text-tertiary)]">{t('loadingLogs')}</p>
                   ) : logs.length === 0 ? (
-                    <p className="text-xs text-gray-400 italic">No logs yet for this rule.</p>
+                    <p className="text-xs text-[var(--text-tertiary)] italic">{t('noLogs')}</p>
                   ) : (
                     <div className="space-y-1 max-h-64 overflow-y-auto">
                       {logs.map((log: AutomationLog) => (
                         <div
                           key={log.id}
-                          className="flex items-center gap-3 py-1.5 px-2 bg-white rounded border border-gray-200 text-xs"
+                          className="flex items-center gap-3 py-1.5 px-2 bg-[var(--bg-primary)] rounded border border-[var(--border-secondary)] text-xs"
                         >
                           <span
                             className={`px-1.5 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
@@ -475,8 +477,8 @@ export default function AutomationPage() {
                           >
                             {log.status}
                           </span>
-                          <span className="text-gray-500 flex-shrink-0">
-                            {new Date(log.createdAt).toLocaleString('ko-KR', {
+                          <span className="text-[var(--text-tertiary)] flex-shrink-0">
+                            {new Date(log.createdAt).toLocaleString(i18n.language === 'ko' ? 'ko-KR' : 'en-US', {
                               month: 'short',
                               day: 'numeric',
                               hour: '2-digit',
@@ -485,12 +487,12 @@ export default function AutomationPage() {
                             })}
                           </span>
                           {log.cardId && (
-                            <span className="text-gray-500 flex-shrink-0">
+                            <span className="text-[var(--text-tertiary)] flex-shrink-0">
                               Card: {log.cardId.slice(0, 8)}...
                             </span>
                           )}
                           {log.details != null && typeof log.details === 'object' ? (
-                            <span className="text-gray-400 truncate">
+                            <span className="text-[var(--text-tertiary)] truncate">
                               {String(JSON.stringify(log.details)).slice(0, 80)}
                             </span>
                           ) : null}

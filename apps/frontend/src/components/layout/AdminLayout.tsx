@@ -1,19 +1,31 @@
 import { Navigate, Outlet, Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/stores/auth';
+import { useProfile } from '@/hooks/useAuth';
 
 const navItems = [
-  { path: '/admin', label: 'Dashboard', icon: '📊' },
-  { path: '/admin/users', label: 'Users', icon: '👤' },
-  { path: '/admin/workspaces', label: 'Workspaces', icon: '🏢' },
-  { path: '/admin/settings', label: 'Settings', icon: '⚙️' },
+  { path: '/admin', labelKey: 'layout.navDashboard', icon: '📊' },
+  { path: '/admin/users', labelKey: 'layout.navUsers', icon: '👤' },
+  { path: '/admin/workspaces', labelKey: 'layout.navWorkspaces', icon: '🏢' },
+  { path: '/admin/settings', labelKey: 'layout.navSettings', icon: '⚙️' },
 ];
 
 export default function AdminLayout() {
   const { user, isAuthenticated } = useAuthStore();
+  const { isLoading } = useProfile();
   const location = useLocation();
+  const { t } = useTranslation('admin');
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (isLoading && !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg-secondary)]">
+        <div className="text-[var(--text-secondary)]">Loading...</div>
+      </div>
+    );
   }
 
   if (!user?.isAdmin) {
@@ -21,13 +33,13 @@ export default function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-[var(--bg-secondary)] flex">
       {/* Sidebar */}
       <aside className="w-60 bg-gray-900 text-white flex flex-col">
         <div className="p-4 border-b border-gray-700">
-          <h1 className="text-lg font-bold">Admin Panel</h1>
+          <h1 className="text-lg font-bold">{t('layout.adminPanel')}</h1>
           <Link to="/" className="text-xs text-gray-400 hover:text-gray-200">
-            ← Back to KanFlow
+            {t('layout.backToKanFlow')}
           </Link>
         </div>
         <nav className="flex-1 p-2">
@@ -43,12 +55,12 @@ export default function AdminLayout() {
               }`}
             >
               <span>{item.icon}</span>
-              {item.label}
+              {t(item.labelKey)}
             </Link>
           ))}
         </nav>
         <div className="p-4 border-t border-gray-700 text-xs text-gray-400">
-          Logged in as {user?.name}
+          {t('layout.loggedInAs', { name: user?.name })}
         </div>
       </aside>
       {/* Main Content */}

@@ -132,6 +132,7 @@ export class CardService {
           include: { label: true },
         },
         _count: { select: { comments: true, checklists: true, attachments: true } },
+        sprint: { select: { id: true, name: true, status: true } },
       },
       orderBy: { position: 'asc' },
     });

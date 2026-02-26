@@ -42,6 +42,8 @@ export interface Card {
   boardId: string;
   columnId: string;
   swimlaneId: string | null;
+  sprintId: string | null;
+  sprint?: { id: string; name: string; status: string };
   cardNumber: number;
   title: string;
   description: string | null;
